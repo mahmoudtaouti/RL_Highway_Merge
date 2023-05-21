@@ -1,0 +1,6 @@
+numpy==1.19.0
+pandas
+gym
+matplotlib
+opencv-python
+pygame
