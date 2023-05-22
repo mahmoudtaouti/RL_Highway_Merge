@@ -2,23 +2,40 @@ import torch as th
 from torch import nn
 
 
+class ActorNet(nn.Module):
+    def __init__(self, state_dim, n_actions):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Linear(state_dim, 256),
+            nn.Tanh(),
+            nn.Linear(256, 128),
+            nn.Tanh(),
+            nn.Linear(128, n_actions),
+            nn.Softmax()
+        )
+
+    def __call__(self, state):
+        return self.model(state)
+
+
+
 class ActorNetwork(nn.Module):
     """
     A network for actor
     """
 
-    def __init__(self, state_dim, hidden_size, output_size, output_act):
+    def __init__(self, state_dim, hidden_size, output_size, output_activation):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(state_dim, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, output_size)
         # activation function for the output
-        self.output_act = output_act
+        self.output_activation = output_activation
 
     def __call__(self, state):
         out = nn.functional.relu(self.fc1(state))
         out = nn.functional.relu(self.fc2(out))
-        out = self.output_act(self.fc3(out))
+        out = self.output_activation(self.fc3(out))
         return out
 
 

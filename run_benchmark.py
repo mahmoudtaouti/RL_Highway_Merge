@@ -1,24 +1,29 @@
-import config as cnf
-import time
-from statistics import mean
-from tqdm import tqdm
+from MARL.MAA2C import MAA2C
+from MARL.common.utils import agg_double_list
 from on_ramp_env import OnRampEnv
-import os
 import argparse
-import numpy as np
-import random
-import traci
-from util.sumo_rec import SumoRecorder
-import util.commun_util as c_util
 
+MAX_EPISODES = 50
+EPISODES_BEFORE_TRAIN = 8
+EVAL_EPISODES = 1
+EVAL_INTERVAL = 5
 
-frame_rate_steps = 3
+MEMORY_CAPACITY = 1000
+BATCH_SIZE = 32
+CRITIC_LOSS = "mse"
+MAX_GRAD_NORM = 0.5
+
+REWARD_DISCOUNTED_GAMMA = 0.99
+EPSILON_START = 0.99
+EPSILON_END = 0.01
+EPSILON_DECAY = 0.01
+
 
 def arg_parse():
     # create an argument parser
     parser = argparse.ArgumentParser(description="Zipper merge e1 runner.")
-    
-    #parser.add_argument('-m', "--tensor_model", required=True, type=str,
+
+    # parser.add_argument('-m', "--tensor_model", required=True, type=str,
     #                    help='Define the path to tensorflow model for zipper merge e1.')
     parser.add_argument(
         '--sync-with-carla',
@@ -31,72 +36,79 @@ def arg_parse():
     opt = parser.parse_args()
     return opt
 
-# evaluation the learned agents
-def evaluation(env, rl, eval_episodes=10,eval_num=0):
-    rewards = []
-    infos = []
-    for i in range(eval_episodes):
-        rewards_i = []
-        infos_i = []
-        state, _ = env.reset(show_gui = True)
-        action = action(state)
-        state, reward, done, info = env.step(action)
-        done = done[0] if isinstance(done, list) else done
-        rewards_i.append(reward)
-        infos_i.append(info)
-        step =0
-        while not done:
-            step+=1
-            action = rl.action(state)
-            state, reward, done, info = env.step(action)
-            #if(step % 5 == 0):
-            #    self.env.render(eval_num) if i == 0 else None
-            done = done[0] if isinstance(done, list) else done
-            rewards_i.append(reward)
-            infos_i.append(info)
-        rewards.append(rewards_i)
-        infos.append(infos_i)
-    #env.close()
-    return rewards, infos
 
 def main():
     # parse the arguments
     opt = arg_parse()
+
     # create environment and agent
     env = OnRampEnv()
-    
-    
-    state = env.reset(opt.show_gui, opt.sync_with_carla) 
-    done = False
-    total_reward = []
-    step = 0
-    
-    # Create a folder to store the screenshots
-    output_folder = "./outputs/100000"
-    os.makedirs(output_folder, exist_ok=True)
-    
-    while not done:
-        step +=1
-        # select agents action
-        random_index = np.random.randint(len(env.action_space))
-        
-        a_1 = 2 if step > 170 and step < 180 else 1
-        a_1 = a_1 if step < 180 else 0
-        a_1 = 4 if step == 120 else a_1
-        a_2 = 0 if step > 170 else 1
-        
-        actions = (1,1)
-        
-        # perform actions on env
-        new_state, reward, done, _ = env.step(actions)
-        
-        total_reward.append(reward)
-        state = new_state
-    
-    #if env.show_gui:
-    #    c_util.convert_images_to_video(output_folder, f"{output_folder}/VID1000.mp4")
-    
-    print(f"Vehicle: {env.controlled_vehicles} - AVG_reward: {sum(total_reward)} - finished with {env.finished_at} steps")
+    rl = MAA2C(n_agents=env.n_agents, state_dim=env.n_state, action_dim=env.n_action,
+               memory_capacity=MEMORY_CAPACITY, batch_size=BATCH_SIZE,
+               reward_gamma=REWARD_DISCOUNTED_GAMMA,
+               actor_hidden_size=256, critic_hidden_size=256,
+               epsilon_start=EPSILON_START, epsilon_end=EPSILON_END,
+               epsilon_decay=EPSILON_DECAY,
+               optimizer_type="adam")
+
+    for eps in range(MAX_EPISODES):
+        state, _ = env.reset(opt.show_gui, opt.sync_with_carla)
+        done = False
+        step = 0
+        rl.tensorboard.step = eps
+        while not done:
+            step += 1
+            # select agents action
+            actions = rl.exploration_act(state, n_episodes=eps)
+
+            # perform actions on env
+            new_state, reward, done, _ = env.step(actions)
+
+            # global reward for each agent
+            reward = [reward] * len(env.controlled_vehicles)
+
+            # remember experience
+            rl.remember(state, actions, reward, new_state, done)
+
+        if eps > EPISODES_BEFORE_TRAIN:
+            rl.learn()
+
+        env.close()
+
+        if eps % EVAL_INTERVAL == 0:
+
+            rewards = []
+            speeds = []
+            ttcs = []
+            headways = []
+            infos = []
+
+            for i in range(EVAL_EPISODES):
+                rewards_i = []
+                infos_i = []
+                state, _ = env.reset(show_gui=True)
+                eval_done = False
+                while not eval_done:
+                    action = rl.act(state)
+                    state, reward, eval_done, info = env.step(action)
+                    # if(step % 5 == 0):
+                    #    self.env.render(eval_num) if i == 0 else None
+                    rewards_i.append(reward)
+                    infos_i.append(info)
+                    for agent in range(0, env.n_agents):
+                        speeds.append(state[agent][2])
+                        ttcs.append(state[agent][7])
+                        headways.append(state[agent][8])
+                env.close()
+                rewards.append(rewards_i)
+                infos.append(infos_i)
+
+            rewards_mu, rewards_std, r_max, r_min = agg_double_list(rewards)
+
+            rl.tensorboard.update_stats(
+                reward_avg=rewards_mu,
+                reward_std=rewards_std,
+                epsilon=rl.epsilon)
 
 
 if __name__ == '__main__':

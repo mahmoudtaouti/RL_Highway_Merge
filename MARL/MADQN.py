@@ -67,7 +67,6 @@ class MADQN:
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
-        np.random.seed(15054)
 
         self.use_cuda = use_cuda and th.cuda.is_available()
         self.q_network = ActorNetwork(self.state_dim, self.actor_hidden_size,
@@ -116,6 +115,10 @@ class MADQN:
         self.n_steps += 1
         for agent_id in range(self.n_agents):
             self.memory.push(state[agent_id], action[agent_id], reward[agent_id], next_state[agent_id], done)
+
+    def remember(self, state, actions, rewards, new_state, done):
+        for agent_id in range(self.n_agents):
+            self.memory.push(state[agent_id], actions[agent_id], rewards[agent_id], new_state[agent_id], done)
 
     # train on a sample batch
     def train(self):
@@ -174,7 +177,6 @@ class MADQN:
     def action(self, state):
         state_var = to_tensor_var([state], self.use_cuda)
         state_action_value_var = self.q_network(state_var)
-
         if self.use_cuda:
             state_action_value = state_action_value_var.data.cpu().numpy()[0]
         else:
@@ -184,7 +186,7 @@ class MADQN:
         return action
 
     # evaluation the learned agents
-    def evaluation(self, eval_episodes=10, eval_num=0):
+    def evaluation(self, eval_episodes=10):
 
         rewards = []
         speeds = []

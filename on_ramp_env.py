@@ -1,9 +1,6 @@
-import glob
 import os
-import sys
 
 import numpy as np
-import math
 import itertools
 
 import traci
@@ -11,7 +8,6 @@ import sumolib
 import config as cnf
 
 import random
-import time
 from sync_simulation import TraCiSync
 import util.traci_util as tr_util
 import util.commun_util as c_util
@@ -103,6 +99,7 @@ class OnRampEnv:
 
     def __init__(self, exec_num=1e3):
 
+        self.finished_at = 0.0
         self.agent_actions = ['idle', 'accelerate', 'decelerate', 'change_right', 'change_left']
         # Define the joint action space
         joint_action_space = list(itertools.product(self.agent_actions, repeat=2))
@@ -113,6 +110,7 @@ class OnRampEnv:
         self.exec_num = exec_num
         self.n_state = len(self.init_state_vals)
         self.n_action = len(self.agent_actions)
+        self.n_agents = len(self.controlled_vehicles)
 
     def reset(self, show_gui=False, syn_with_carla=False):
 
@@ -120,10 +118,10 @@ class OnRampEnv:
         self.syn_with_carla = syn_with_carla
         self.step_num = 0
 
-        try:
-            self.close()
-        except:
-            pass
+        # try:
+        #     self.close()
+        # except:
+        #     pass
 
         self._starSIM()
 
@@ -150,10 +148,9 @@ class OnRampEnv:
 
         done = False
         reward = 0
-        info = {}
-
-        info["agents_dones"] = tuple(
+        info = {"agents_dones": tuple(
             not self.agent_is_exist(veh) or self.agent_is_arrived(veh) for veh in self.controlled_vehicles)
+        }
 
         # end episode
         if all(info["agents_dones"]) or self.step_num >= self.max_steps or traci.simulation.getMinExpectedNumber() == 0:
@@ -213,7 +210,7 @@ class OnRampEnv:
                 rewards.append(0)
             else:
                 if state[indx][s_edge] == self.s_edge_mapping[self.on_ramp_edge]:
-                    ''' vehilces on ramp '''
+                    ''' vehicles on ramp '''
                     rewards.append(self._on_ramp_reward(indx, vehicle, state, action, new_state))
                 else:
                     ''' vehicles on highway'''
