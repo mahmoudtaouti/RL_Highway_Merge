@@ -16,7 +16,7 @@ def entropy(p):
 
 
 def kl_log_probs(log_p1, log_p2):
-    return -th.sum(th.exp(log_p1)*(log_p2 - log_p1), 1)
+    return -th.sum(th.exp(log_p1) * (log_p2 - log_p1), 1)
 
 
 def index_to_one_hot(index, dim):
@@ -47,10 +47,10 @@ def to_tensor_var(x, use_cuda=False, dtype="float"):
         return Variable(FloatTensor(x))
 
 
-def agg_double_list(l):
+def agg_list_stat(agg_list):
     # l: [ [...], [...], [...] ]
     # l_i: result of each step in the i-th episode
-    s = [np.sum(np.array(l_i), 0) for l_i in l]
+    s = [np.sum(np.array(l_i), 0) for l_i in agg_list]
     s_mu = np.mean(np.array(s), 0)
     s_std = np.std(np.array(s), 0)
     s_max = np.max(np.array(s), 0)

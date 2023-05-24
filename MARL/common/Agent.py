@@ -1,9 +1,8 @@
-
 import torch as th
 import numpy as np
 
-from MARL.single_agent.Memory_common import ReplayMemory
-from MARL.single_agent.utils_common import identity
+from MARL.common.Memory import ReplayMemory
+from MARL.common.utils import identity
 
 
 class Agent(object):
@@ -21,16 +20,17 @@ class Agent(object):
     - value: evaluate value for a state-action pair
     - evaluation: evaluation a learned agent
     """
+
     def __init__(self, env, state_dim, action_dim,
-                memory_capacity=10000, max_steps=10000,
-                reward_gamma=0.99, reward_scale=1., done_penalty=None,
-                actor_hidden_size=32, critic_hidden_size=32,
-                actor_output_act=identity, critic_loss="mse",
-                actor_lr=0.01, critic_lr=0.01,
-                optimizer_type="rmsprop", entropy_reg=0.01,
-                max_grad_norm=0.5, batch_size=100, episodes_before_train=100,
-                epsilon_start=0.9, epsilon_end=0.01, epsilon_decay=0.01,
-                use_cuda=True):
+                 memory_capacity=10000, max_steps=10000,
+                 reward_gamma=0.99, reward_scale=1., done_penalty=None,
+                 actor_hidden_size=32, critic_hidden_size=32,
+                 actor_output_act=identity, critic_loss="mse",
+                 actor_lr=0.01, critic_lr=0.01,
+                 optimizer_type="rmsprop", entropy_reg=0.01,
+                 max_grad_norm=0.5, batch_size=100, episodes_before_train=100,
+                 epsilon_start=0.9, epsilon_end=0.01, epsilon_decay=0.01,
+                 use_cuda=True):
 
         self.env = env
         self.state_dim = state_dim

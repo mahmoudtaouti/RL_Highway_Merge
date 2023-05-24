@@ -5,7 +5,7 @@ from torch.optim import Adam, RMSprop
 import numpy as np
 import random
 from MARL.common.Memory import ReplayMemory
-from MARL.common.Model import ActorNetwork, CriticNetwork, ActorNet
+from MARL.common.Model import ActorNetwork, CriticNetwork, ActorNet  # was ActorNetwork causing problem wth action probs
 from MARL.common.utils import entropy, index_to_one_hot, to_tensor_var, exponential_epsilon_decay
 
 # seed
@@ -18,7 +18,7 @@ random.seed(seed)
 class A2C:
     def __init__(self, state_dim, action_dim,
                  memory_capacity=10000,
-                 reward_gamma=0.99, reward_scale=1., done_penalty=None,
+                 reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=32, critic_hidden_size=32,
                  actor_output_act=nn.functional.log_softmax, critic_loss="mse",
                  actor_lr=0.001, critic_lr=0.001,
@@ -31,7 +31,6 @@ class A2C:
         self.action_dim = action_dim
         self.reward_gamma = reward_gamma
         self.reward_scale = reward_scale
-        self.done_penalty = done_penalty
 
         self.memory = ReplayMemory(memory_capacity)
         self.actor_hidden_size = actor_hidden_size
@@ -66,7 +65,7 @@ class A2C:
             self.actor.cuda()
 
     # train on a roll_out batch
-    def train(self):
+    def learn(self):
         """
          Do not train until exploration is enough
         """
@@ -99,8 +98,53 @@ class A2C:
 
         critic_loss.backward()
         if self.max_grad_norm is not None:
-            nn.utils.clip_grad_norm(self.critic.parameters(), self.max_grad_norm)
+            nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
         self.critic_optimizer.step()
+
+    def shared_learning(self,
+                        n_agents,
+                        agent_index,
+                        shared_critic,
+                        shared_critic_optim,
+                        shared_batch_sample):
+        """
+         centralized learning for N agents
+         update and synchronize the shared critic network parameters during the learning process.
+        """
+        states_var = to_tensor_var(shared_batch_sample.states, self.use_cuda).view(-1, n_agents, self.state_dim)
+        actions_var = to_tensor_var(shared_batch_sample.actions, self.use_cuda).view(-1, n_agents, self.action_dim)
+        rewards_var = to_tensor_var(shared_batch_sample.rewards, self.use_cuda).view(-1, n_agents, 1)
+        whole_states_var = states_var.view(-1, n_agents * self.state_dim)
+        whole_actions_var = actions_var.view(-1, n_agents * self.action_dim)
+
+        # update actor network
+        self.actor_optimizer.zero_grad()
+        action_log_probs = self.actor(states_var[:, agent_index, :])
+        entropy_loss = th.mean(entropy(th.exp(action_log_probs)))
+        action_log_probs = th.sum(action_log_probs * actions_var[:, agent_index, :], 1)
+
+        values = shared_critic(whole_states_var, whole_actions_var)
+
+        # calculate advantages
+        advantages = rewards_var[:, agent_index, :] - values.detach()
+        pg_loss = -th.mean(action_log_probs * advantages)
+        actor_loss = pg_loss - entropy_loss * self.entropy_reg
+        actor_loss.backward()
+
+        if self.max_grad_norm is not None:
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+        self.actor_optimizer.step()
+
+        # update critic network
+        shared_critic_optim.zero_grad()
+        target_values = rewards_var[:, agent_index, :]
+
+        critic_loss = nn.MSELoss()(values, target_values)
+
+        critic_loss.backward()
+        if self.max_grad_norm is not None:
+            nn.utils.clip_grad_norm(shared_critic.parameters(), self.max_grad_norm)
+        shared_critic_optim.step()
 
     # predict softmax action based on state
     def _softmax_action(self, state):
@@ -114,15 +158,12 @@ class A2C:
         else:
             softmax_action = softmax_action_var.data.numpy()[0]
 
-        # Normalize the softmax values
-        # softmax_action /= np.sum(softmax_action)
-
         return softmax_action
 
     # choose an action based on state with random noise added for exploration in training
     def exploration_action(self, state, epsilon):
         softmax_action = self._softmax_action(state)
-
+        # the epsilon greedy is calculated with MARL
         if np.random.rand() < epsilon:
             action = np.random.choice(self.action_dim)
         else:

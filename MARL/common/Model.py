@@ -11,12 +11,11 @@ class ActorNet(nn.Module):
             nn.Linear(256, 128),
             nn.Tanh(),
             nn.Linear(128, n_actions),
-            nn.Softmax()
+            nn.Softmax(dim=1)
         )
 
     def __call__(self, state):
         return self.model(state)
-
 
 
 class ActorNetwork(nn.Module):

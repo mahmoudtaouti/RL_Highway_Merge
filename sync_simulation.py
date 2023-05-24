@@ -19,15 +19,12 @@ from sumo_integration.carla_simulation import CarlaSimulation
 from sumo_integration.constants import INVALID_ACTOR_ID
 from sumo_integration.sumo_simulation import SumoSimulation
 
-
-
-
 # carla config
 CARLA_MAP = "Town04"
 CARLA_SER_IP = "127.0.0.1"
 CARLA_SER_PORT = 2000
 DELTA_SEC = 0.05
-CLIENT_ORDER = 1 #client order number for the co-simulation TraCI connection (default: 1)
+CLIENT_ORDER = 1  # client order number for the co-simulation TraCI connection (default: 1)
 
 # sumo config
 SUMO_CFG_FILE = "map/Town04.sumocfg"
@@ -38,9 +35,9 @@ SUMO_SER_PORT = None
 # sync config
 SYN_VEH_LIGHTS = False
 SYN_VEH_COLOR = False
-SYN_VEH_ALL = False # synchronize all vehicle properties (default: False)
+SYN_VEH_ALL = False  # synchronize all vehicle properties (default: False)
 
-TLS_MANAGER = "none" # choices=["none", "sumo", "carla"]
+TLS_MANAGER = "none"  # choices=["none", "sumo", "carla"]
 
 
 # Simulation Synchronization
@@ -51,26 +48,27 @@ class SimulationSynchronization(object):
     SimulationSynchronization class is responsible for the synchronization of sumo and carla
     simulations.
     """
+
     def __init__(
-        self,
-        sumo_simulation,
-        carla_simulation,
-        tls_manager="none",
-        sync_vehicle_color=False,
-        sync_vehicle_lights=False,
+            self,
+            sumo_simulation,
+            carla_simulation,
+            tls_manager="none",
+            sync_vehicle_color=False,
+            sync_vehicle_lights=False,
     ):
         self.sumo = sumo_simulation
         self.carla = carla_simulation
-        
+
         self.tls_manager = tls_manager
         self.sync_vehicle_color = sync_vehicle_color
         self.sync_vehicle_lights = sync_vehicle_lights
-        
+
         if tls_manager == "carla":
             self.sumo.switch_off_traffic_lights()
         elif tls_manager == "sumo":
             self.carla.switch_off_traffic_lights()
-        
+
         # Mapped actor ids.
         self.sumo2carla_ids = {}  # Contains only actors controlled by sumo.
         self.carla2sumo_ids = {}  # Contains only actors controlled by carla.
@@ -83,7 +81,7 @@ class SimulationSynchronization(object):
         self.carla.world.apply_settings(settings)
         traffic_manager = self.carla.client.get_trafficmanager()
         traffic_manager.set_synchronous_mode(True)
-    
+
     def tick(self):
         """
         Tick to simulation synchronization
@@ -145,7 +143,7 @@ class SimulationSynchronization(object):
         # Updates traffic lights in carla based on sumo information.
         if self.tls_manager == "sumo":
             common_landmarks = (
-                self.sumo.traffic_light_ids & self.carla.traffic_light_ids
+                    self.sumo.traffic_light_ids & self.carla.traffic_light_ids
             )
             for landmark_id in common_landmarks:
                 sumo_tl_state = self.sumo.get_traffic_light_state(landmark_id)
@@ -210,7 +208,7 @@ class SimulationSynchronization(object):
         # Updates traffic lights in sumo based on carla information.
         if self.tls_manager == "carla":
             common_landmarks = (
-                self.sumo.traffic_light_ids & self.carla.traffic_light_ids
+                    self.sumo.traffic_light_ids & self.carla.traffic_light_ids
             )
             for landmark_id in common_landmarks:
                 carla_tl_state = self.carla.get_traffic_light_state(landmark_id)
@@ -220,7 +218,7 @@ class SimulationSynchronization(object):
 
                 # Updates all the sumo links related to this landmark.
                 self.sumo.synchronize_traffic_light(landmark_id, sumo_tl_state)
-    
+
     def close(self):
         """
         Cleans synchronization.
@@ -243,9 +241,7 @@ class SimulationSynchronization(object):
         self.sumo.close()
 
 
-
 def _sync_loop(callback):
-    
     """
     Entry point for sumo-carla co-simulation.
     """
@@ -257,11 +253,11 @@ def _sync_loop(callback):
         SUMO_SHOW_GUI,
         CLIENT_ORDER,
     )
-    
+
     carla_simulation = CarlaSimulation(
         CARLA_SER_IP, CARLA_SER_PORT, DELTA_SEC
     )
-    
+
     synchronization = SimulationSynchronization(
         sumo_simulation,
         carla_simulation,
@@ -269,25 +265,26 @@ def _sync_loop(callback):
         SYN_VEH_COLOR,
         SYN_VEH_LIGHTS,
     )
-    
+
     try:
         while True:
             start = time.time()
-            
+
             synchronization.tick()
-            
-            #additional execution here
-            
+
+            # additional execution here
+
             end = time.time()
             elapsed = end - start
             if elapsed < DELTA_SEC:
                 time.sleep(DELTA_SEC - elapsed)
-        
+
     except KeyboardInterrupt:
         logging.info("Cancelled by user.")
     finally:
         logging.info("Cleaning synchronization")
         synchronization.close()
+
 
 class TraCiSync():
     '''
@@ -295,8 +292,9 @@ class TraCiSync():
     use simulationStep(callBack) for advance one step and execute the callback function if need
     use colse() to close connection
     '''
-    def __init__(self, client_order = CLIENT_ORDER):
-        
+
+    def __init__(self, client_order=CLIENT_ORDER):
+
         print("start SumoSimulation")
         self.sumo_simulation = SumoSimulation(
             SUMO_CFG_FILE,
@@ -306,12 +304,12 @@ class TraCiSync():
             SUMO_SHOW_GUI,
             client_order,
         )
-        
+
         print("start CarlaSimulation")
         self.carla_simulation = CarlaSimulation(
             CARLA_SER_IP, CARLA_SER_PORT, DELTA_SEC
         )
-        
+
         print("start SimulationSynchronization")
         self.synchronization = SimulationSynchronization(
             self.sumo_simulation,
@@ -320,39 +318,38 @@ class TraCiSync():
             SYN_VEH_COLOR,
             SYN_VEH_LIGHTS,
         )
-    
+
     def simulationStep(self, callback=None):
         start = time.time()
         self.synchronization.tick()
-        #additional execution here
+        # additional execution here
         if callback is not None:
             callback()
         end = time.time()
         elapsed = end - start
         if elapsed < DELTA_SEC:
             time.sleep(DELTA_SEC - elapsed)
-    
+
     def close(self):
         self.synchronization.close()
 
 
 def run():
-    '''
+    """
     running synchronization carla&sumo running without any control
     load Map Carla/Maps/Town04
     load Cfg map/Town04.sumocfg
     Run map/Town04/rou/rou.xml
-    '''
-    
+    """
     try:
         client = carla.Client(CARLA_SER_IP, CARLA_SER_PORT)
         client.set_timeout(15.0)
         world = client.get_world()
-        world_map_name = world.get_map().name.replace("Carla/Maps/","")
+        world_map_name = world.get_map().name.replace("Carla/Maps/", "")
         if CARLA_MAP != world_map_name:
             print(f"load required {CARLA_MAP} map instead of {world.get_map().name}")
             client.load_world(CARLA_MAP)
-        
+
         _sync_loop()
     except RuntimeError:
         print("failed to connect to carla server")
@@ -360,7 +357,6 @@ def run():
         logging.info("Cancelled by user.")
     except traci.exceptions.FatalTraCIError:
         logging.info("sumo close connection.")
-    
 
 
 if __name__ == "__main__":

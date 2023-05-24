@@ -2,9 +2,13 @@ import os
 
 from MARL.agent.A2C import A2C
 import torch.nn as nn
-from MARL.common.utils import exponential_epsilon_decay
-from util.ModifiedTensorBoard import ModifiedTensorBoard
 import torch as th
+from torch.optim import Adam
+
+from MARL.common.Memory import ReplayMemory
+from MARL.common.Model import CriticNetwork
+from MARL.common.utils import exponential_epsilon_decay, to_tensor_var
+from util.ModifiedTensorBoard import ModifiedTensorBoard
 
 
 class MAA2C:
@@ -21,11 +25,15 @@ class MAA2C:
         assert training_strategy in ["concurrent", "centralized"]
         # TODO: implement training based on training_strategy
 
+        self.n_agents = n_agents
         self.state_dim = state_dim
         self.action_dim = action_dim
-        self.n_agents = n_agents
-        self.epsilon = epsilon_start
 
+        self.batch_size = batch_size
+
+        self.training_strategy = training_strategy
+        self.use_cuda = use_cuda and th.cuda.is_available()
+        self.epsilon = epsilon_start
         self.epsilon = epsilon_start
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
@@ -33,42 +41,66 @@ class MAA2C:
 
         self.tensorboard = ModifiedTensorBoard()
 
+        self.shared_critic = None
+        self.shared_memory = None
+        self.shared_critic_optimizer = None
+
+        if training_strategy == "centralized":
+            self.shared_memory = ReplayMemory(capacity=memory_capacity)
+            self.shared_critic = CriticNetwork(state_dim * n_agents, action_dim * n_agents, critic_hidden_size, 1)
+            self.shared_critic_optimizer = Adam(self.shared_critic.parameters(), lr=critic_lr)
+
         # Create N agents
-        self.agents = [A2C(state_dim=state_dim,
-                           action_dim=action_dim,
-                           memory_capacity=memory_capacity,
-                           reward_gamma=reward_gamma,
-                           reward_scale=reward_scale,
-                           actor_hidden_size=actor_hidden_size,
-                           critic_hidden_size=critic_hidden_size,
-                           critic_loss=critic_loss,
-                           actor_lr=actor_lr,
-                           critic_lr=critic_lr,
-                           optimizer_type=optimizer_type,
-                           batch_size=batch_size,
-                           epsilon_start=epsilon_start,
-                           epsilon_end=epsilon_end,
-                           epsilon_decay=epsilon_decay,
-                           entropy_reg=entropy_reg,
-                           actor_output_act=actor_output_act,
-                           max_grad_norm=max_grad_norm,
-                           use_cuda=use_cuda)] * self.n_agents
+        self.agents = []
+        for i in range(self.n_agents):
+            agent = A2C(state_dim=state_dim,
+                        action_dim=action_dim,
+                        memory_capacity=memory_capacity,
+                        reward_gamma=reward_gamma,
+                        reward_scale=reward_scale,
+                        actor_hidden_size=actor_hidden_size,
+                        critic_hidden_size=critic_hidden_size,
+                        critic_loss=critic_loss,
+                        actor_lr=actor_lr,
+                        critic_lr=critic_lr,
+                        optimizer_type=optimizer_type,
+                        batch_size=batch_size,
+                        epsilon_start=epsilon_start,
+                        epsilon_end=epsilon_end,
+                        epsilon_decay=epsilon_decay,
+                        entropy_reg=entropy_reg,
+                        actor_output_act=actor_output_act,
+                        max_grad_norm=max_grad_norm,
+                        use_cuda=use_cuda)
+            self.agents.append(agent)
 
     def learn(self):
         """
-        train for each agent the gathered experiences in the replay memory,
+        train for each agent the gathered experiences
+        agent.shared_learning: centralized learning strategy that share the same critic network
+        agent.learn: independent (concurrent) learning
         """
-        for agent in self.agents:
-            agent.train()
+        for index, agent in enumerate(self.agents):
+            if self.training_strategy == "centralized":
+                shared_batch = self.shared_memory.sample(self.batch_size)
+                agent.shared_learning(n_agents=self.n_agents,
+                                      agent_index=index,
+                                      shared_batch_sample=shared_batch,
+                                      shared_critic=self.shared_critic,
+                                      shared_critic_optim=self.shared_critic_optimizer)
+            else:
+                agent.learn()
 
     def remember(self, states, actions, rewards, new_states, dones):
         """
         push experiences to replay memory
         """
-        # TODO: remember based on training strategy
         dones = dones if isinstance(dones, list) else [dones] * self.n_agents
-        for agent, s, a, r, n_s, d in zip(self.agents, states, actions, rewards, new_states, dones):
-            agent.remember(s, a, r, n_s, d)
+        if self.training_strategy == "centralized":
+            self.shared_memory.push(states, actions, rewards, new_states, dones)
+        else:
+            for agent, s, a, r, n_s, d in zip(self.agents, states, actions, rewards, new_states, dones):
+                agent.remember(s, a, r, n_s, d)
 
     def exploration_act(self, states, n_episodes):
         """
@@ -107,12 +139,13 @@ class MAA2C:
         checkpoint_dir = out_dir + f"/models/checkpoint-{checkpoint_num}"
         os.makedirs(checkpoint_dir, exist_ok=True)
 
+        # TODO: centralized learning have a special save
         for index, agent in enumerate(self.agents):
             actor_file_path = checkpoint_dir + f"/actor_{index}.pt"
             critic_file_path = checkpoint_dir + f"/critic_{index}.pt"
 
             th.save({'global_step': global_step,
-                     'model_state_dict': agent.state_dict(),
+                     'model_state_dict': agent.actor.state_dict(),
                      'optimizer_state_dict': agent.actor_optimizer.state_dict()},
                     actor_file_path)
             th.save({'global_step': global_step,
