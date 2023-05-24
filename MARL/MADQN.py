@@ -10,7 +10,14 @@ from util.ModifiedTensorBoard import ModifiedTensorBoard
 
 
 class MADQN:
-
+    """
+    multi-agent Deep Q-Network
+    - training with concurrent or centralized learning
+    - two model option torch or tensor
+    - using target model for stable learning
+    - exploration action with exponential epsilon greedy
+    @mahmoudtaouti
+    """
     def __init__(self, state_dim, action_dim, n_agents, memory_capacity=10000,
                  reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=128, target_update_freq=50,
@@ -129,6 +136,9 @@ class MADQN:
         return tuple(actions)
 
     def update_targets(self):
+        """
+        update target model weights for each agent
+        """
         for agent in self.agents:
             agent.update_target()
 
@@ -167,4 +177,7 @@ class MADQN:
                 agent.actor.save(actor_file_path)
 
     def load(self, directory, global_step=None):
-        pass
+        """
+        load saved models
+        """
+        raise NotImplementedError()

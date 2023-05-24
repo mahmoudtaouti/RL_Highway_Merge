@@ -5,7 +5,10 @@ import torch.nn as nn
 
 
 class MADDPG:
-
+    """
+    A multi-agent learned with DDPG
+    reference: https://github.com/ChenglongChen/pytorch-DRL
+    """
     def __init__(self, state_dim, action_dim, n_agents, memory_capacity=10000,
                  target_tau=0.01, target_update_steps=5, reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=128, critic_hidden_size=128,

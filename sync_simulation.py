@@ -1,8 +1,6 @@
-import argparse
 import logging
 import time
 
-import glob
 import os
 import sys
 
@@ -286,12 +284,12 @@ def _sync_loop(callback):
         synchronization.close()
 
 
-class TraCiSync():
-    '''
-    Synchronization carla&sumo, full contorl with TraCi
-    use simulationStep(callBack) for advance one step and execute the callback function if need
-    use colse() to close connection
-    '''
+class TraCiSync:
+    """
+    Synchronization carla&sumo, full control with TraCi
+    use simulationStep(callBack) for advance one step and execute the callback function if needed
+    use close() for end synchronization
+    """
 
     def __init__(self, client_order=CLIENT_ORDER):
 
@@ -320,6 +318,10 @@ class TraCiSync():
         )
 
     def simulationStep(self, callback=None):
+        """
+        advance one-step simulation
+        you can pass a callback function
+        """
         start = time.time()
         self.synchronization.tick()
         # additional execution here
@@ -331,6 +333,9 @@ class TraCiSync():
             time.sleep(DELTA_SEC - elapsed)
 
     def close(self):
+        """
+        end synchronization and close connection
+        """
         self.synchronization.close()
 
 

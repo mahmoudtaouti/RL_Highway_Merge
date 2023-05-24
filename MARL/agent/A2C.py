@@ -16,6 +16,16 @@ random.seed(seed)
 
 
 class A2C:
+    """
+    A2C agent
+    using pytorch model approximation based method
+    - take exploration action, expect epsilon value or use decay_epsilon()
+    - save experiences to replay memory
+    - train actor critic model
+    - Actor takes state as input
+    - Critic takes both state and action as input
+    - save model
+    """
     def __init__(self, state_dim, action_dim,
                  memory_capacity=10000,
                  reward_gamma=0.99, reward_scale=1.,
@@ -26,6 +36,7 @@ class A2C:
                  max_grad_norm=0.5, batch_size=100,
                  epsilon_start=0.9, epsilon_end=0.01, epsilon_decay=0.003,
                  use_cuda=True):
+        # TODO : add execution mode ["single_agent", "multi_agent"]
 
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -110,6 +121,7 @@ class A2C:
         """
          centralized learning for N agents
          update and synchronize the shared critic network parameters during the learning process.
+         @mahmoudtaouti
         """
         states_var = to_tensor_var(shared_batch_sample.states, self.use_cuda).view(-1, n_agents, self.state_dim)
         actions_var = to_tensor_var(shared_batch_sample.actions, self.use_cuda).view(-1, n_agents, self.action_dim)

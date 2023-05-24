@@ -1,4 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
+
+<!--the example provided by CARLA generating a number of vehicles across all the Town04 map-->
+
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
     <vehicle id="0" type="vehicle.chevrolet.impala" depart="0.00">
         <route edges="-46.0.00 -47.0.00 34.0.00 -39.0.00 33.0.00 47.0.00 44.0.00 39.0.00 38.0.00 37.0.00 36.0.00 35.0.00 42.0.00 -23.0.00"><route edges="40.0.00 39.0.00 38.0.00"/></vehicle>

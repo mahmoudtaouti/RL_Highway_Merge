@@ -7,12 +7,15 @@ from torch.optim import Adam
 
 from MARL.common.Memory import ReplayMemory
 from MARL.common.Model import CriticNetwork
-from MARL.common.utils import exponential_epsilon_decay, to_tensor_var
+from MARL.common.utils import exponential_epsilon_decay
 from util.ModifiedTensorBoard import ModifiedTensorBoard
 
 
 class MAA2C:
-
+    """
+    multi agent advantage actor critic
+    @mahmoudtaouti
+    """
     def __init__(self, state_dim, action_dim, n_agents, memory_capacity=10000,
                  reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=128, critic_hidden_size=128,
@@ -23,7 +26,6 @@ class MAA2C:
                  training_strategy="concurrent", use_cuda=False):
 
         assert training_strategy in ["concurrent", "centralized"]
-        # TODO: implement training based on training_strategy
 
         self.n_agents = n_agents
         self.state_dim = state_dim
@@ -78,7 +80,7 @@ class MAA2C:
         """
         train for each agent the gathered experiences
         agent.shared_learning: centralized learning strategy that share the same critic network
-        agent.learn: independent (concurrent) learning
+        agent.learn: concurrent (independent) learning
         """
         for index, agent in enumerate(self.agents):
             if self.training_strategy == "centralized":
@@ -106,6 +108,8 @@ class MAA2C:
         """
         for each agent make exploration action,
         and return a tuple of all agents actions
+        using exponential epsilon decay
+        Returns: tuple(actions)
         """
         self.epsilon = exponential_epsilon_decay(
             epsilon_start=self.epsilon_start,
@@ -121,7 +125,7 @@ class MAA2C:
 
     def act(self, states):
         """
-        for each agent predict action,
+        for each agent predict action
         and return a tuple of all agents actions
         """
         actions = []
@@ -133,7 +137,7 @@ class MAA2C:
     def save(self, out_dir, checkpoint_num, global_step):
         """
         create checkpoint directory,
-        and save models of all RL agents
+        and save models of all MAA2C agents
         """
         os.makedirs(out_dir + "/models", exist_ok=True)
         checkpoint_dir = out_dir + f"/models/checkpoint-{checkpoint_num}"
@@ -154,4 +158,7 @@ class MAA2C:
                     critic_file_path)
 
     def load(self, directory, global_step=None):
-        pass
+        """
+        load saved models
+        """
+        raise NotImplementedError()

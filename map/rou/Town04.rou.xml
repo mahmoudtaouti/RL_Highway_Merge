@@ -2,15 +2,17 @@
 
 <routes>
 
-    <route id="route0" edges="40.0.00 39.0.00 38.0.00"/>  
-    <route id="route1" edges="44.0.00 39.0.00 38.0.00"/>
+    <!-- highway route -->
+    <route id="route0" edges="40.0.00 39.0.00 38.0.00"/>
 
-    <!--<flow id="flow_0" begin="0" end="6" departLane="2" route="route0" type="vehicle.nissan.micra" probability="0.4"/>
-    <flow id="flow_1" begin="0" end="6" departLane="3" route="route0" type="vehicle.nissan.micra" probability="0.6"/>
-    <!<flow id="flow_3" begin="0" end="10" departLane="4" route="route0" type="vehicle.nissan.micra" probability="0.3" speedFactor="1.8"/>-->
+    <!-- ramp to highway route -->
+    <route id="route1" edges="44.0.00 39.0.00 38.0.00"/>
 
     <vehicle id="0"  type="vehicle.tesla.model3" route="route0" depart="0" departLane="1" speedFactor="1.2"/>
     <vehicle id="1"  type="vehicle.tesla.model3" route="route1" depart="1.6" speedFactor="1.2"/>
 
+    <!--<flow id="flow_0" begin="0" end="6" departLane="2" route="route0" type="vehicle.nissan.micra" probability="0.4"/>
+    <flow id="flow_1" begin="0" end="6" departLane="3" route="route0" type="vehicle.nissan.micra" probability="0.6"/>
+    <!<flow id="flow_3" begin="0" end="10" departLane="4" route="route0" type="vehicle.nissan.micra" probability="0.3" speedFactor="1.8"/>-->
 
 </routes>

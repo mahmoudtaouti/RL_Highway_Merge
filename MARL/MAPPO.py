@@ -1,6 +1,16 @@
-import torch as th
-from torch import nn
+import numpy as np
+import os, logging
+from copy import deepcopy
+from MARL.common.Memory import OnPolicyReplayMemory
+from MARL.common.Model import ActorNetwork, CriticNetwork
+from MARL.common.utils import index_to_one_hot, to_tensor_var, VideoRecorder
+
 import configparser
+
+import torch as th
+
+from torch.optim import Adam, RMSprop
+from torch import nn
 
 config_dir = 'configs/configs_ppo.ini'
 config = configparser.ConfigParser()
@@ -10,21 +20,13 @@ th.manual_seed(torch_seed)
 th.backends.cudnn.benchmark = False
 th.backends.cudnn.deterministic = True
 
-from torch.optim import Adam, RMSprop
-
-import numpy as np
-import os, logging
-from copy import deepcopy
-from MARL.common.Memory import OnPolicyReplayMemory
-from MARL.common.Model import ActorNetwork, CriticNetwork
-from MARL.common.utils import index_to_one_hot, to_tensor_var, VideoRecorder
-
 
 class MAPPO:
     """
-    An multi-agent learned with PPO
+    A multi-agent learned with PPO
     reference: https://github.com/ChenglongChen/pytorch-DRL
     """
+
     def __init__(self, env, state_dim, action_dim,
                  memory_capacity=10000, max_steps=None,
                  roll_out_n_steps=1, target_tau=1.,

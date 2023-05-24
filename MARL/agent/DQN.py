@@ -9,7 +9,14 @@ from MARL.common.utils import identity, to_tensor_var
 
 
 class DQN:
-
+    """
+    DQN agent
+    using pytorch model approximation based method
+    - take exploration action, expect epsilon value or use decay_epsilon()
+    - save experiences to replay memory
+    - train model and update values on batch sample
+    - save model
+    """
     def __init__(self, state_dim, action_dim,
                  memory_capacity=10000, batch_size=100,
                  reward_gamma=0.99, reward_scale=1.,

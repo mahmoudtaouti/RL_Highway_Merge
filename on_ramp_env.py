@@ -36,10 +36,21 @@ a_left = 4
 
 
 class OnRampEnv:
+    """
+    On-ramp vehicles try to merge safely into the Highway
+    - using Town04.rou.xml
+    - Run with Sumo gui use : reset(show_gui=True)
+    - Run Sync with Sumo gui and Carla use: reset(show_gui=True, syn_with_carla=True)
+    - controlled_vehicles = [vehicles_id]
+    Note:
+        close the environment after done with close()
+
+        min_steps = (depart/DELTA_SEC) + 1, all vehicles should be departed before start doing actual step(actions)
+    """
     show_gui = False
     syn_with_carla = False
     step_num = 0
-    min_steps = 80  # all vehicles should be departed, min_step =  (depart/DELTA_SEC) + 1
+    min_steps = 80
     max_steps = 600
 
     # simulation var
@@ -147,7 +158,18 @@ class OnRampEnv:
         return state, {}
 
     def step(self, actions):
-
+        """
+        take one-step
+        Returns:
+            new_states,
+            rewards,
+            done,
+            info {
+            "agents_dones"
+            "agents_actions",
+            "local_rewards":,
+            "agents_info"}
+        """
         done = False
 
         info = {
@@ -308,7 +330,7 @@ class OnRampEnv:
     def _update_state(self):
         """
         state(posX, posY, speed(m/s), edge_id, lane_indx, dist_merge_node, merge_node_visibility(0 or 1), TTC,
-        headway, trip_time)
+        headway, trip_time_delay)
         """
         def get_state(vehicle):
             posX = traci.vehicle.getPosition(vehicle)[0]
