@@ -7,22 +7,23 @@ def lmap(v: float, x_range, y_range) -> float:
     """Linear map of value v with range x to desired range y."""
     return y_range[0] + (v - x_range[0]) * (y_range[1] - y_range[0]) / (x_range[1] - x_range[0])
 
+
 def to_ndarray(arr):
     return np.asarray(arr).reshape((len(arr), -1))
+
 
 def write_to_log(message, output_dir='ver/log.txt'):
     path = output_dir + 'log.txt'
     with open(path, 'a') as file:
         file.write(message + '\n')
-        
-        
+
 
 def increment_counter():
     '''
     count each execute and give current counte number
     '''
     counter_file = "exec.num"
-    
+
     if os.path.exists(counter_file):
         with open(counter_file, "r") as file:
             count = int(file.read())

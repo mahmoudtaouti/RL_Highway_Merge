@@ -83,7 +83,6 @@ class DQN_TF:
 
             # Update Q value for given state
             current_qs = qs_list[index]
-
             current_qs[action] = new_q
             qs_list[index] = current_qs
 

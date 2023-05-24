@@ -100,8 +100,8 @@ def main():
                     state, global_reward, eval_done, info = env.step(action)
                     total_reward = sum(info["local_rewards"]) + global_reward
                     local_rewards.append(info["local_rewards"])
-                    # if in_step % 5 == 0:
-                    #    env.render(eva_num) if i == 0 else None
+                    if in_step % 5 == 0:
+                        env.render(eva_num) if i == 0 else None
                     rewards_i.append(total_reward)
                     infos_i.append(info)
                     for agent in range(0, env.n_agents):
@@ -131,7 +131,7 @@ def main():
                 headway=np.min(headways),
                 trip_time=np.max(trip_time_delays))
 
-            #rl.save(out_dir=outputs_dir, checkpoint_num=eva_num, global_step=eps)
+            rl.save(out_dir=outputs_dir, checkpoint_num=eva_num, global_step=eps)
 
 
 if __name__ == '__main__':
