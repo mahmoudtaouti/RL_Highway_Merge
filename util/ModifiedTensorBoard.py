@@ -1,11 +1,13 @@
 from keras.callbacks import TensorBoard
 import tensorflow as tf
 from datetime import datetime
-# by sentdex, reinforcement learning tuorial on youtube. 
+
+
+# by sentdex, reinforcement learning tutorial on YouTube.
 class ModifiedTensorBoard(TensorBoard):
 
     # Overriding init to set initial step and writer (we want one log file for all .fit() calls)
-    def __init__(self,log_dir = 'logs/', **kwargs):
+    def __init__(self, log_dir='logs/', **kwargs):
         super().__init__(**kwargs)
         self.step = 1
         # Define your log directory
@@ -13,7 +15,6 @@ class ModifiedTensorBoard(TensorBoard):
         log_dir = log_dir + current_time
         # Create a summary writer
         self.writer = tf.summary.create_file_writer(log_dir)
-        
 
     # Overriding this method to stop creating default log writer
     def set_model(self, model):
@@ -24,12 +25,12 @@ class ModifiedTensorBoard(TensorBoard):
     def on_epoch_end(self, epoch, logs=None):
         self.update_stats(**logs)
 
-    # Overrided
+    # Override
     # We train for one batch only, no need to save anything at epoch end
     def on_batch_end(self, batch, logs=None):
         pass
 
-    # Overrided, so won't close writer
+    # Override, so won't close writer
     def on_train_end(self, _):
         pass
 
@@ -37,11 +38,10 @@ class ModifiedTensorBoard(TensorBoard):
     # Creates writer, writes custom metrics and closes writer
     def update_stats(self, **stats):
         self._write_logs(stats, self.step)
-    
-    
+
     # Custom method for saving own metrics
     # Creates writer, writes custom metrics and closes writer
-    #def update_stats(self, **stats):
+    # def update_stats(self, **stats):
     #    self._write_logs(self._prepare_logs(stats), self.step)
 
     def _prepare_logs(self, logs):

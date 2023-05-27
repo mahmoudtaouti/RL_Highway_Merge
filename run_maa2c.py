@@ -4,7 +4,7 @@ import os
 from MARL.MAA2C import MAA2C
 from MARL.common.utils import agg_list_stat
 from on_ramp_env import OnRampEnv
-from util.common_util import increment_counter
+from util.common_util import increment_counter, write_to_log
 
 import config as cnf
 
@@ -18,6 +18,12 @@ def main():
     outputs_dir = f"./outputs/{exec_num}/"
     os.makedirs(outputs_dir, exist_ok=True)
 
+    write_to_log(f"EXEC==================================================\n"
+                 f"Execution number : {exec_num}\n"
+                 f"RL option: MAA2C \n"
+                 f"Training strategy: {cnf.TRAINING_STRATEGY} \n"
+                 "=======================================================", output_dir=outputs_dir)
+
     env = OnRampEnv(exec_num=exec_num)
 
     rl = MAA2C(n_agents=env.n_agents, state_dim=env.n_state, action_dim=env.n_action,
@@ -26,7 +32,9 @@ def main():
                actor_hidden_size=256, critic_hidden_size=256,
                epsilon_start=cnf.EPSILON_START, epsilon_end=cnf.EPSILON_END,
                epsilon_decay=cnf.EPSILON_DECAY,
-               optimizer_type="rmsprop", training_strategy=cnf.TRAINING_STRATEGY)
+               optimizer_type="rmsprop", training_strategy=cnf.TRAINING_STRATEGY, outputs_dir=outputs_dir)
+
+    rl.load(directory="./outputs/17/models", check_point=7)
 
     training_loop(env, rl, outputs_dir)
 
@@ -74,6 +82,7 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
     # render images to outputs_dir
     # save tensorboard logs
     # save checkpoint model
+    # save data to log file
     """
     rewards = []
     speeds = []
@@ -83,6 +92,9 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
     trip_time = []
     local_rewards = []
     for i in range(cnf.EVAL_EPISODES):
+        write_to_log(f"Evaluation___________________________________________\n"
+                     f" number -- {eval_number}\n"
+                     f" training episode -- {episode}\n", output_dir=outputs_dir)
         rewards_i = []
         infos_i = []
         state, _ = env.reset(show_gui=True)
@@ -92,8 +104,7 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
             state, global_reward, eval_done, info = env.step(action)
             total_reward = sum(info["local_rewards"]) + global_reward
             local_rewards.append(info["local_rewards"])
-            if i % 6 == 0:
-                env.render(eval_number) if i == 0 else None
+            env.render(eval_number) if i == 0 else None
             rewards_i.append(total_reward)
             infos_i.append(info)
             for agent in range(0, env.n_agents):
@@ -101,6 +112,13 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
                 ttcs.append(state[agent][7])
                 headways.append(state[agent][8])
                 trip_time.append(state[agent][9])
+            write_to_log(f"Step---------------------------------\n"
+                         f"\t* actions : {action}\n"
+                         f"\t* agents dones : {info['agents_dones']}\n"
+                         f"\t* state : {state} \n"
+                         f"\t* global reward : {global_reward} \n"
+                         f"\t* local rewards : {info['local_rewards']} \n", output_dir=outputs_dir)
+        write_to_log(f"_____________________________________________\n", output_dir=outputs_dir)
         env.close()
         rewards.append(rewards_i)
         infos.append(infos_i)

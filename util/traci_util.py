@@ -15,6 +15,18 @@ def decelerate(vehicle_id, deceleration=0.37):
     traci.vehicle.setSpeed(vehicle_id, target_speed)
 
 
+def remove_agent(veh):
+    traci.vehicle.remove(veh)
+
+
+def agent_is_collide(vehicle):
+    return vehicle in traci.simulation.getCollidingVehiclesIDList()
+
+
+def agent_is_exist(vehicle):
+    return vehicle in traci.vehicle.getIDList()
+
+
 # def accelerate(vehicle,value = 15,duration = 5):
 #     '''
 #     slowDown() function used to change the speed smoothly

@@ -32,7 +32,7 @@ SUMO_SER_PORT = None
 
 # sync config
 SYN_VEH_LIGHTS = False
-SYN_VEH_COLOR = False
+SYN_VEH_COLOR = True
 SYN_VEH_ALL = False  # synchronize all vehicle properties (default: False)
 
 TLS_MANAGER = "none"  # choices=["none", "sumo", "carla"]
@@ -289,6 +289,7 @@ class TraCiSync:
     Synchronization carla&sumo, full control with TraCi
     use simulationStep(callBack) for advance one step and execute the callback function if needed
     use close() for end synchronization
+    @mahmoudtaouti
     """
 
     def __init__(self, client_order=CLIENT_ORDER):

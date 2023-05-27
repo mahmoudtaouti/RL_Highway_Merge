@@ -164,7 +164,6 @@ class MADQN:
         checkpoint_dir = out_dir + f"/models/checkpoint-{checkpoint_num}"
         os.makedirs(checkpoint_dir, exist_ok=True)
 
-        # TODO: centralized learning have a special save
         for index, agent in enumerate(self.agents):
             if self.model_type == "torch":
                 actor_file_path = checkpoint_dir + f"/actor_{index}.pt"

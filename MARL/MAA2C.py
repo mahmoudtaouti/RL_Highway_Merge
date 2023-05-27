@@ -16,6 +16,7 @@ class MAA2C:
     multi agent advantage actor critic
     @mahmoudtaouti
     """
+
     def __init__(self, state_dim, action_dim, n_agents, memory_capacity=10000,
                  reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=128, critic_hidden_size=128,
@@ -23,7 +24,7 @@ class MAA2C:
                  actor_lr=0.001, critic_lr=0.001, optimizer_type="adam", entropy_reg=0.01,
                  max_grad_norm=0.5, batch_size=64, epsilon_start=0.9,
                  epsilon_end=0.01, epsilon_decay=0.003,
-                 training_strategy="concurrent", use_cuda=False):
+                 training_strategy="concurrent", use_cuda=False, outputs_dir="logs/"):
 
         assert training_strategy in ["concurrent", "centralized"]
 
@@ -41,7 +42,7 @@ class MAA2C:
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
 
-        self.tensorboard = ModifiedTensorBoard()
+        self.tensorboard = ModifiedTensorBoard(outputs_dir)
 
         self.shared_critic = None
         self.shared_memory = None
@@ -136,14 +137,22 @@ class MAA2C:
 
     def save(self, out_dir, checkpoint_num, global_step):
         """
-        create checkpoint directory,
-        and save models of all MAA2C agents
+        save models of all MAA2C agents
+        Args:
+            out_dir (str): Directory path where to save.
+            checkpoint_num(int): check-point during the training
+            global_step (int): Global step or checkpoint number to load (optional).
+
+        Raises:
+            FileNotFoundError: If the specified output directory does not exist.
         """
+        if not os.path.exists(out_dir):
+            raise FileNotFoundError(f"The directory '{out_dir}' does not exist.")
+
         os.makedirs(out_dir + "/models", exist_ok=True)
         checkpoint_dir = out_dir + f"/models/checkpoint-{checkpoint_num}"
         os.makedirs(checkpoint_dir, exist_ok=True)
 
-        # TODO: centralized learning have a special save
         for index, agent in enumerate(self.agents):
             actor_file_path = checkpoint_dir + f"/actor_{index}.pt"
             critic_file_path = checkpoint_dir + f"/critic_{index}.pt"
@@ -152,13 +161,54 @@ class MAA2C:
                      'model_state_dict': agent.actor.state_dict(),
                      'optimizer_state_dict': agent.actor_optimizer.state_dict()},
                     actor_file_path)
-            th.save({'global_step': global_step,
-                     'model_state_dict': agent.critic.state_dict(),
-                     'optimizer_state_dict': agent.critic_optimizer.state_dict()},
-                    critic_file_path)
 
-    def load(self, directory, global_step=None):
+            if self.training_strategy == "centralized":
+                th.save({'global_step': global_step,
+                         'model_state_dict': self.shared_critic.state_dict(),
+                         'optimizer_state_dict': self.shared_critic_optimizer.state_dict()},
+                        critic_file_path)
+            else:
+                th.save({'global_step': global_step,
+                         'model_state_dict': agent.critic.state_dict(),
+                         'optimizer_state_dict': agent.critic_optimizer.state_dict()},
+                        critic_file_path)
+
+    def load(self, directory, check_point=None):
         """
-        load saved models
+        Load saved models
+        Args:
+            directory (str): Directory path where the saved models are located.
+            check_point (int): Global step or checkpoint number to load (optional).
+        Raises:
+            FileNotFoundError: If the specified directory or checkpoint does not exist.
         """
-        raise NotImplementedError()
+        if not os.path.exists(directory):
+            raise FileNotFoundError(f"The directory '{directory}' does not exist.")
+
+        checkpoint_dir = os.path.join(directory, f"checkpoint-{check_point}") if check_point else directory
+
+        for index, agent in enumerate(self.agents):
+            actor_file_path = os.path.join(checkpoint_dir, f"actor_{index}.pt")
+            critic_file_path = os.path.join(checkpoint_dir, f"critic_{index}.pt")
+
+            if not os.path.exists(actor_file_path):
+                raise FileNotFoundError(f"The actor model file '{actor_file_path}' does not exist.")
+
+            if not os.path.exists(critic_file_path):
+                raise FileNotFoundError(f"The critic model file '{critic_file_path}' does not exist.")
+
+            checkpoint = th.load(actor_file_path)
+            agent.actor.load_state_dict(checkpoint['model_state_dict'])
+            agent.actor_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+            # TODO : correct load for centralized case
+            if self.training_strategy == "centralized":
+                critic_checkpoint = th.load(critic_file_path)
+                self.shared_critic.load_state_dict(critic_checkpoint['model_state_dict'])
+                self.shared_critic_optimizer.load_state_dict(critic_checkpoint['optimizer_state_dict'])
+            else:
+                critic_checkpoint = th.load(critic_file_path)
+                agent.critic.load_state_dict(critic_checkpoint['model_state_dict'])
+                agent.critic_optimizer.load_state_dict(critic_checkpoint['optimizer_state_dict'])
+
+        print("Models loaded successfully.")

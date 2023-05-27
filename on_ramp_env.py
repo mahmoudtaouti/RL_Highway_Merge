@@ -43,14 +43,15 @@ class OnRampEnv:
     - Run Sync with Sumo gui and Carla use: reset(show_gui=True, syn_with_carla=True)
     - controlled_vehicles = [vehicles_id]
     Note:
-        close the environment after done with close()
-
-        min_steps = (depart/DELTA_SEC) + 1, all vehicles should be departed before start doing actual step(actions)
+        * speed m/s
+        * distance meter
+        * close the environment after done with close()
+        * min_steps = (depart/DELTA_SEC) + 1, all vehicles should be departed before start doing actual step(actions)
     """
     show_gui = False
     syn_with_carla = False
     step_num = 0
-    min_steps = 80
+    min_steps = 34
     max_steps = 600
 
     # simulation var
@@ -58,17 +59,20 @@ class OnRampEnv:
     terminal_edge = "38.0.00"
     merging_node = "720"
     highway_edges = ("40.0.00", "39.0.00", "38.0.00")
-    observation_range = 150  # assume AVs can detect objects within a range of 150 meters
 
     # agents var
     controlled_vehicles = ["0", "1"]
-    TTC_threshold = 25
+    TTC_threshold = 10
+    observation_range = 150  # assume AVs can detect objects within a range of 150 meters
+    communication_range = 2000  # assume AVs using V2V communication with 5G (that's just expected reference range)
 
     #
     on_ramp_properties = {
-        'd_speed': 15,
-        'max_speed': 20,
-        'speed_range': (0, 16),
+        'd_speed': 18,
+        'max_speed': 27,
+        'min_speed': 8,
+        'ttc_threshold': 10,
+        'speed_range': (0, 34),
         'min_gap': 10,
         'hard_braking': -7,
     }
@@ -76,10 +80,11 @@ class OnRampEnv:
     #
     on_highway_properties = {
         'd_speed': 25,
-        'max_speed': 30,
-        'speed_range': (0, 30),
-        'min_gap': 10,
+        'max_speed': 41,
         'min_speed': 15,
+        'speed_range': (0, 60),
+        'ttc_threshold': 10,
+        'min_gap': 15,
         'hard_braking': -7
     }
 
@@ -111,18 +116,22 @@ class OnRampEnv:
 
     def __init__(self, exec_num=1e3):
 
-        self.finished_at = 0.0
+        self.init_state_vals = (0, 0, 0, 0, 0, -1, 0, -1, -1, 0)
+        self.state = [self.init_state_vals for _ in self.controlled_vehicles]
+
         self.agent_actions = ['idle', 'accelerate', 'decelerate', 'change_right', 'change_left']
         # Define the joint action space
         joint_action_space = list(itertools.product(self.agent_actions, repeat=2))
         self.action_space = np.array(joint_action_space)
-        self.init_state_vals = (0, 0, 0, 0, 0, -1, 0, -1, -1, 0)
-        self.state = [self.init_state_vals for _ in self.controlled_vehicles]
-        self.traci_sync = None
-        self.exec_num = exec_num
+
         self.n_state = len(self.init_state_vals)
         self.n_action = len(self.agent_actions)
         self.n_agents = len(self.controlled_vehicles)
+
+        self.traci_sync = None
+        self.exec_num = exec_num
+        self.finished_at = 0.0
+
         self.arrived_vehicles_state = {"vehicles": [], "terminal_state": []}
 
     def reset(self, show_gui=False, syn_with_carla=False):
@@ -161,14 +170,7 @@ class OnRampEnv:
         """
         take one-step
         Returns:
-            new_states,
-            rewards,
-            done,
-            info {
-            "agents_dones"
-            "agents_actions",
-            "local_rewards":,
-            "agents_info"}
+            new_states, rewards, done, info {"agents_dones" "agents_actions" "local_rewards" "agents_info"}
         """
         done = False
 
@@ -215,23 +217,25 @@ class OnRampEnv:
     def _global_reward(self, state, actions, new_state):
         # Calculate global rewards based on the state of the entire system
         # Consider system-level objectives such as trip time delay, safety, efficiency, etc.
-        reward = 0
-        cost = 0
-        reference_trip_time_delay = 60  # reference to maximum trip time delay for all vehicles could take
+        reward = 0.0
+        cost = 0.0
+        reference_trip_time_delay = 15  # reference to maximum trip time delay for all vehicles could take
 
         for indx, veh in enumerate(self.controlled_vehicles):
 
             if self.agent_is_collide(veh):
                 cost += 100
+
             for i, arr_veh in enumerate(self.arrived_vehicles_state["vehicles"]):
                 if arr_veh == veh:
                     t_state = self.arrived_vehicles_state["terminal_state"][i]
-                    curr_trip_time_delay = t_state[s_trip_t_delay]
-                    reward += -1 * min(0, curr_trip_time_delay - reference_trip_time_delay)
-                    self.arrived_vehicles_state["vehicles"].remove(veh)
-                    self.arrived_vehicles_state["terminal_state"].remove(t_state)
-        scaled_total = c_util.lmap(reward - cost, [-100, 60], [-1, 1])
-        return scaled_total
+                    reward += max(0, reference_trip_time_delay - t_state[s_trip_t_delay])
+                    print(f"trip time delay {t_state[s_trip_t_delay]}")
+                    # delete vehicle from list after passing the reward
+                    del self.arrived_vehicles_state["vehicles"][i]
+                    del self.arrived_vehicles_state["terminal_state"][i]
+
+        return reward - cost
 
     def _local_rewards(self, state, actions, new_state):
         rewards = []
@@ -251,81 +255,79 @@ class OnRampEnv:
     def _on_ramp_reward(self, indx, agent, state, action, new_state):
 
         # init
-        reward = 0
-        cost = 0
+        reward = 0.0
+        cost = 0.0
         current_speed = state[indx][s_speed]
         new_speed = new_state[indx][s_speed]
         d_speed = self.on_ramp_properties["d_speed"]
         speed_range = self.on_ramp_properties["speed_range"]
         scaled_speed = c_util.lmap(new_speed, speed_range, [0, 1])
         min_gap = self.on_ramp_properties['min_gap']
+        headway = new_state[indx][s_headway]
         max_speed = self.on_ramp_properties['max_speed']
         headway = new_state[indx][s_headway]
         ramp_edge = self.s_edge_mapping[self.on_ramp_edge]
 
         # cost for illegal actions
-        cost += 5 if not self._action_is_legal(agent, action) else 0
+        cost += 3 if not self._action_is_legal(agent, action) else 0
 
-        if action == a_idle:
-            reward += np.clip(scaled_speed, 0, 1)
-        elif action == a_acc:
-            if new_speed <= max_speed:
-                reward += 0.5
-            else:
-                cost += (new_speed - d_speed) / d_speed
-        elif action == a_dec:
-            # Reward for preserving minimum gap
-            if headway <= min_gap:
-                reward += 0.1
-            else:
-                # cost for low speed
-                cost += 2 * (d_speed - new_speed) / d_speed if new_speed < d_speed else 0
+        # reward for maintaining good speed
+        # best case for d_seed + 4 > new_speed > d_seed - 4
+        reward += min(1, 4 / (abs((new_speed - d_speed) + 1.99999)))
+
+        # assigning delta ratio to very low or high speed
+        delta_speed = (new_speed - d_speed) / d_speed
+        if delta_speed < 0:
+            cost += 0.4 * abs(delta_speed)
+        elif new_speed > max_speed:
+            cost += delta_speed
 
         # Reward for safe merging with d_speed (no abrupt maneuvers)
-        reward += 10 if new_state[indx][s_edge] != ramp_edge else 0
+        reward += 5 / abs(delta_speed) if new_state[indx][s_edge] != ramp_edge else 0
 
-        scaled_total = c_util.lmap(reward - cost, [-6, 11], [-1, 1])
-        return scaled_total
+        cost += 0.1 if headway != -1 and headway < min_gap else 0
+
+        return reward - cost
 
     def _on_highway_reward(self, indx, agent, state, action, new_state):
 
         # init
-        reward = 0
-        cost = 0
+        reward = 0.0
+        cost = 0.0
         current_speed = state[indx][s_speed]
         new_speed = new_state[indx][s_speed]
         d_speed = self.on_highway_properties["d_speed"]
         speed_range = self.on_highway_properties["speed_range"]
         max_speed = self.on_highway_properties['max_speed']
+        min_gap = self.on_highway_properties['min_gap']
+        headway = new_state[indx][s_headway]
         scaled_speed = c_util.lmap(new_speed, speed_range, [0, 1])
-        # TODO action reward only on visible observation range
         ttc = tr_util.ttc_with_ramp_veh(agent, self.on_ramp_edge)
 
+        # reward for maintaining good speed
+        # best case for d_seed + 4 > new_speed > d_seed - 4
+        reward += min(1, 4 / (abs((new_speed - d_speed) + 1.99999)))
+
+        delta_speed = (new_speed - d_speed) / d_speed
+        if delta_speed < 0:
+            cost += 0.4 * abs(delta_speed)
+        elif new_speed > max_speed:
+            cost += 0.8 * delta_speed
+
         # cost for illegal actions
-        cost += 5 if not self._action_is_legal(agent, action) else 0
+        cost += 3.0 if not self._action_is_legal(agent, action) else 0.0
 
-        if action == a_idle:
-            reward += np.clip(scaled_speed, 0, 1)
-        elif action == a_acc:
-            if new_speed <= max_speed:
-                reward += 0.5
-            else:
-                cost += (new_speed - d_speed) / d_speed
-        elif action == a_dec:
-            if ttc < self.TTC_threshold:
-                reward += 5
-            # decelerate on low speed cost (no reason)
-            cost += 2 * (d_speed - new_speed) / d_speed if new_speed < d_speed else 0
-        elif action == a_left:
-            # reward for change lane to left to allow merge
-            reward += 2 if ttc < self.TTC_threshold else 0
-            cost += 0 if tr_util.change_lane_chance(agent, change_direction=1) else -0.5
-        elif action == a_right:
-            # change lane to right (no abrupt maneuvers)
-            cost += 0 if tr_util.change_lane_chance(agent, change_direction=-1) else -0.5
+        if ttc != -1 and ttc < self.TTC_threshold:
+            if action == a_dec:
+                reward += 1.5
+            elif action == a_left and tr_util.change_lane_chance(vehicleID=agent, change_direction=1):
+                reward += 0.6
 
-        scaled_total = c_util.lmap(reward - cost, [-6, 6], [-1, 1])
-        return scaled_total
+        reward += 0.3 if action == a_right and tr_util.change_lane_chance(vehicleID=agent, change_direction=-1) else 0
+
+        cost += 0.1 if headway != -1 and headway < min_gap else 0
+
+        return reward - cost
 
     def _update_state(self):
         """
@@ -385,7 +387,8 @@ class OnRampEnv:
                 # TODO illegal action cost
                 pass
 
-    def _act(self, vehID, action):
+    @staticmethod
+    def _act(vehID, action):
         if action == a_idle:
             pass
         elif action == a_acc:
@@ -460,16 +463,19 @@ class OnRampEnv:
 
         return True
 
-    def agent_is_exist(self, vehicle):
+    @staticmethod
+    def agent_is_exist(vehicle):
         return vehicle in traci.vehicle.getIDList()
 
     def agent_is_arrived(self, vehicle):
         return traci.vehicle.getRoadID(vehicle) == self.terminal_edge
 
-    def agent_is_collide(self, vehicle):
+    @staticmethod
+    def agent_is_collide(vehicle):
         return vehicle in traci.simulation.getCollidingVehiclesIDList()
 
-    def remove_agent(self, veh):
+    @staticmethod
+    def remove_agent(veh):
         traci.vehicle.remove(veh)
 
     def render(self, episode=0):
@@ -485,6 +491,7 @@ class OnRampEnv:
     def sim_step(self, callback=None):
 
         if self.syn_with_carla:
+            # TODO : for the sync make sure the actor removed properly
             self.traci_sync.simulationStep(callback)
         else:
             if callback is not None:

@@ -2,6 +2,8 @@ import config as cnf
 import time
 from statistics import mean
 from tqdm import tqdm
+
+from MARL.MAA2C import MAA2C
 from on_ramp_env import OnRampEnv
 import os
 import argparse
@@ -36,7 +38,17 @@ def main():
     # create environment and agent
     env = OnRampEnv()
 
-    state = env.reset(True, opt.sync_with_carla)
+    rl = MAA2C(n_agents=env.n_agents, state_dim=env.n_state, action_dim=env.n_action,
+               memory_capacity=cnf.MEMORY_SIZE, batch_size=cnf.BATCH_SIZE,
+               reward_gamma=cnf.REWARD_DISCOUNTED_GAMMA,
+               actor_hidden_size=256, critic_hidden_size=256,
+               epsilon_start=cnf.EPSILON_START, epsilon_end=cnf.EPSILON_END,
+               epsilon_decay=cnf.EPSILON_DECAY,
+               optimizer_type="rmsprop", training_strategy=cnf.TRAINING_STRATEGY)
+
+    rl.load(directory="./outputs/17/models", check_point=7)
+
+    state, _ = env.reset(opt.show_gui, opt.sync_with_carla)
     done = False
     total_reward = []
     step = 0
@@ -46,15 +58,16 @@ def main():
         # select agents action
         random_index = np.random.randint(len(env.action_space))
 
-        a_1 = 2 if 170 < step < 180 else 1
-        a_1 = a_1 if step < 130 else 0
-        a_1 = 2 if 135 > step > 120 else a_1
-        a_2 = 0 if step > 100 else 1
+        a_1 = 1 if step < 120 else 0
+        a_1 = 2 if 175 > step > 150 else a_1
+        a_2 = 1 if step < 90 else 0
 
         actions = (a_1, a_2)
+        actions = rl.act(state)
 
         # perform actions on env
         new_state, glob, done, info = env.step(actions)
+        # env.render()
         rewards = [locl_r + glob for locl_r in info["local_rewards"]]
         print(f"local rewards {info['local_rewards']}, global {glob}")
         total_reward.append(sum(rewards))
@@ -64,7 +77,7 @@ def main():
     #    c_util.convert_images_to_video(output_folder, f"{output_folder}/VID1000.mp4")
 
     print(
-        f"Vehicle: {env.controlled_vehicles} - AVG_reward: {sum(total_reward)} - finished with {env.finished_at} steps")
+        f"Vehicle: {env.controlled_vehicles} - SUM_reward: {sum(total_reward)} - finished with {env.finished_at} steps")
 
 
 if __name__ == '__main__':
