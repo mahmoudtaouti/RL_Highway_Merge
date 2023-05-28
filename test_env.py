@@ -1,17 +1,10 @@
-import config as cnf
-import time
-from statistics import mean
-from tqdm import tqdm
+import argparse
 
+import numpy as np
+
+import config as cnf
 from MARL.MAA2C import MAA2C
 from on_ramp_env import OnRampEnv
-import os
-import argparse
-import numpy as np
-import random
-import traci
-from util.sumo_rec import SumoRecorder
-import util.common_util as c_util
 
 
 def arg_parse():
@@ -46,7 +39,7 @@ def main():
                epsilon_decay=cnf.EPSILON_DECAY,
                optimizer_type="rmsprop", training_strategy=cnf.TRAINING_STRATEGY)
 
-    rl.load(directory="./outputs/17/models", check_point=7)
+    # rl.load(directory="./outputs/17/models", check_point=7)
 
     state, _ = env.reset(opt.show_gui, opt.sync_with_carla)
     done = False
@@ -59,11 +52,11 @@ def main():
         random_index = np.random.randint(len(env.action_space))
 
         a_1 = 1 if step < 120 else 0
-        a_1 = 2 if 175 > step > 150 else a_1
+        a_1 = 2 if 170 > step > 140 else a_1
         a_2 = 1 if step < 90 else 0
 
         actions = (a_1, a_2)
-        actions = rl.act(state)
+        # actions = rl.act(state)
 
         # perform actions on env
         new_state, glob, done, info = env.step(actions)

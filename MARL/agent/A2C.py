@@ -1,12 +1,13 @@
+import random
+
+import numpy as np
 import torch as th
 from torch import nn
 from torch.optim import Adam, RMSprop
 
-import numpy as np
-import random
 from MARL.common.Memory import ReplayMemory
-from MARL.common.Model import ActorNetwork, CriticNetwork, ActorNet  # was ActorNetwork causing problem wth action probs
-from MARL.common.utils import entropy, index_to_one_hot, to_tensor_var, exponential_epsilon_decay
+from MARL.common.Model import CriticNetwork, ActorNetwork
+from MARL.common.utils import entropy, index_to_one_hot, to_tensor_var
 
 # seed
 seed = 10
@@ -26,11 +27,12 @@ class A2C:
     - Critic takes both state and action as input
     - save model
     """
+
     def __init__(self, state_dim, action_dim,
                  memory_capacity=10000,
                  reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=32, critic_hidden_size=32,
-                 actor_output_act=nn.functional.log_softmax, critic_loss="mse",
+                 actor_output_act=nn.functional.linear, critic_loss="mse",
                  actor_lr=0.001, critic_lr=0.001,
                  optimizer_type="rmsprop", entropy_reg=0.01,
                  max_grad_norm=0.5, batch_size=100,
@@ -63,9 +65,9 @@ class A2C:
 
         self.use_cuda = use_cuda and th.cuda.is_available()
 
-        self.actor = ActorNet(self.state_dim, self.action_dim)
-        self.critic = CriticNetwork(self.state_dim, self.action_dim,
-                                    self.critic_hidden_size, 1)
+        self.actor = ActorNetwork(self.state_dim, actor_hidden_size, self.action_dim, actor_output_act)
+        self.critic = CriticNetwork(self.state_dim, self.action_dim, self.critic_hidden_size, 1)
+
         if self.optimizer_type == "adam":
             self.actor_optimizer = Adam(self.actor.parameters(), lr=self.actor_lr)
             self.critic_optimizer = Adam(self.critic.parameters(), lr=self.critic_lr)
@@ -125,6 +127,13 @@ class A2C:
         """
         states_var = to_tensor_var(shared_batch_sample.states, self.use_cuda).view(-1, n_agents, self.state_dim)
         actions_var = to_tensor_var(shared_batch_sample.actions, self.use_cuda).view(-1, n_agents, self.action_dim)
+
+        print(f"state {states_var}")
+        print(f"state len {len(states_var)}")
+
+        print(f"action {actions_var}")
+        print(f"action len {len(actions_var)}")
+
         rewards_var = to_tensor_var(shared_batch_sample.rewards, self.use_cuda).view(-1, n_agents, 1)
         whole_states_var = states_var.view(-1, n_agents * self.state_dim)
         whole_actions_var = actions_var.view(-1, n_agents * self.action_dim)
@@ -132,6 +141,7 @@ class A2C:
         # update actor network
         self.actor_optimizer.zero_grad()
         action_log_probs = self.actor(states_var[:, agent_index, :])
+
         entropy_loss = th.mean(entropy(th.exp(action_log_probs)))
         action_log_probs = th.sum(action_log_probs * actions_var[:, agent_index, :], 1)
 

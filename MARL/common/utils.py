@@ -1,10 +1,7 @@
 import math
-import cv2, os
 import torch as th
 from torch.autograd import Variable
 import numpy as np
-from shutil import copy
-import torch.nn as nn
 
 
 def identity(x):
@@ -56,39 +53,6 @@ def agg_list_stat(agg_list):
     s_max = np.max(np.array(s), 0)
     s_min = np.min(np.array(s), 0)
     return s_mu, s_std, s_max, s_min
-
-
-class VideoRecorder:
-    """This is used to record videos of evaluations"""
-
-    def __init__(self, filename, frame_size, fps):
-        self.video_writer = cv2.VideoWriter(
-            filename,
-            cv2.VideoWriter_fourcc(*"MPEG"), int(fps),
-            (frame_size[1], frame_size[0]))
-
-    def add_frame(self, frame):
-        self.video_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-
-    def release(self):
-        self.video_writer.release()
-
-    def __del__(self):
-        self.release()
-
-
-def init_dir(base_dir, pathes=['train_videos', 'configs', 'models', 'eval_videos', 'eval_logs']):
-    if not os.path.exists("./results/"):
-        os.mkdir("./results/")
-    if not os.path.exists(base_dir):
-        os.mkdir(base_dir)
-    dirs = {}
-    for path in pathes:
-        cur_dir = base_dir + '/%s/' % path
-        if not os.path.exists(cur_dir):
-            os.mkdir(cur_dir)
-        dirs[path] = cur_dir
-    return dirs
 
 
 def exponential_epsilon_decay(epsilon_start, epsilon_end, decay_rate, episode):

@@ -1,3 +1,4 @@
+import math
 import os
 
 import numpy as np
@@ -46,12 +47,12 @@ class OnRampEnv:
         * speed m/s
         * distance meter
         * close the environment after done with close()
-        * min_steps = (depart/DELTA_SEC) + 1, all vehicles should be departed before start doing actual step(actions)
+        * start_step = (last_depart/DELTA_SEC) + 1, all vehicles should departed before start doing .step(actions)
     """
     show_gui = False
     syn_with_carla = False
     step_num = 0
-    min_steps = 34
+    start_step = 34
     max_steps = 600
 
     # simulation var
@@ -63,6 +64,7 @@ class OnRampEnv:
     # agents var
     controlled_vehicles = ["0", "1"]
     TTC_threshold = 10
+    headway_threshold = 1.2
     observation_range = 150  # assume AVs can detect objects within a range of 150 meters
     communication_range = 2000  # assume AVs using V2V communication with 5G (that's just expected reference range)
 
@@ -148,7 +150,7 @@ class OnRampEnv:
         self._starSIM()
 
         # depart steps (all vehicles entered the sim)
-        while self.step_num < self.min_steps:
+        while self.step_num < self.start_step:
             self.sim_step()
             self.step_num += 1
 
@@ -224,12 +226,12 @@ class OnRampEnv:
         for indx, veh in enumerate(self.controlled_vehicles):
 
             if self.agent_is_collide(veh):
-                cost += 100
+                cost += cnf.COLLISION_COST
 
             for i, arr_veh in enumerate(self.arrived_vehicles_state["vehicles"]):
                 if arr_veh == veh:
                     t_state = self.arrived_vehicles_state["terminal_state"][i]
-                    reward += max(0, reference_trip_time_delay - t_state[s_trip_t_delay])
+                    reward += 2 if reference_trip_time_delay - t_state[s_trip_t_delay] > 0 else 0
                     print(f"trip time delay {t_state[s_trip_t_delay]}")
                     # delete vehicle from list after passing the reward
                     del self.arrived_vehicles_state["vehicles"][i]
@@ -263,7 +265,6 @@ class OnRampEnv:
         speed_range = self.on_ramp_properties["speed_range"]
         scaled_speed = c_util.lmap(new_speed, speed_range, [0, 1])
         min_gap = self.on_ramp_properties['min_gap']
-        headway = new_state[indx][s_headway]
         max_speed = self.on_ramp_properties['max_speed']
         headway = new_state[indx][s_headway]
         ramp_edge = self.s_edge_mapping[self.on_ramp_edge]
@@ -283,9 +284,11 @@ class OnRampEnv:
             cost += delta_speed
 
         # Reward for safe merging with d_speed (no abrupt maneuvers)
-        reward += 5 / abs(delta_speed) if new_state[indx][s_edge] != ramp_edge else 0
+        reward += cnf.MERGING_LANE_REWARD / abs(delta_speed) if new_state[indx][s_edge] != ramp_edge else 0
 
-        cost += 0.1 if headway != -1 and headway < min_gap else 0
+        if headway != -1:
+            r_headway = math.log(headway / (self.headway_threshold * current_speed))
+            cost += - cnf.HEADWAY_COST * r_headway if r_headway < 0 else 0
 
         return reward - cost
 
@@ -310,22 +313,24 @@ class OnRampEnv:
 
         delta_speed = (new_speed - d_speed) / d_speed
         if delta_speed < 0:
-            cost += 0.4 * abs(delta_speed)
+            cost += 0.7 * abs(delta_speed)
         elif new_speed > max_speed:
-            cost += 0.8 * delta_speed
+            cost += delta_speed
 
         # cost for illegal actions
         cost += 3.0 if not self._action_is_legal(agent, action) else 0.0
 
+        if headway != -1:
+            r_headway = math.log(headway / (self.headway_threshold * current_speed))
+            cost += - cnf.HEADWAY_COST * r_headway if r_headway < 0 else 0
+
         if ttc != -1 and ttc < self.TTC_threshold:
             if action == a_dec:
-                reward += 1.5
+                reward += 1.2
             elif action == a_left and tr_util.change_lane_chance(vehicleID=agent, change_direction=1):
                 reward += 0.6
 
         reward += 0.3 if action == a_right and tr_util.change_lane_chance(vehicleID=agent, change_direction=-1) else 0
-
-        cost += 0.1 if headway != -1 and headway < min_gap else 0
 
         return reward - cost
 

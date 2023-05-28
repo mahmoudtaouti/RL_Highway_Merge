@@ -20,8 +20,8 @@ class MAA2C:
     def __init__(self, state_dim, action_dim, n_agents, memory_capacity=10000,
                  reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=128, critic_hidden_size=128,
-                 actor_output_act=nn.functional.tanh, critic_loss="mse",
-                 actor_lr=0.001, critic_lr=0.001, optimizer_type="adam", entropy_reg=0.01,
+                 actor_output_act=nn.functional.softmax, critic_loss="mse",
+                 actor_lr=0.001, critic_lr=0.001, optimizer_type="rmsprop", entropy_reg=0.01,
                  max_grad_norm=0.5, batch_size=64, epsilon_start=0.9,
                  epsilon_end=0.01, epsilon_decay=0.003,
                  training_strategy="concurrent", use_cuda=False, outputs_dir="logs/"):
@@ -156,6 +156,7 @@ class MAA2C:
         for index, agent in enumerate(self.agents):
             actor_file_path = checkpoint_dir + f"/actor_{index}.pt"
             critic_file_path = checkpoint_dir + f"/critic_{index}.pt"
+            shared_critic_oath = checkpoint_dir + f"/shared_critic.pt"
 
             th.save({'global_step': global_step,
                      'model_state_dict': agent.actor.state_dict(),
@@ -166,7 +167,7 @@ class MAA2C:
                 th.save({'global_step': global_step,
                          'model_state_dict': self.shared_critic.state_dict(),
                          'optimizer_state_dict': self.shared_critic_optimizer.state_dict()},
-                        critic_file_path)
+                        shared_critic_oath)
             else:
                 th.save({'global_step': global_step,
                          'model_state_dict': agent.critic.state_dict(),

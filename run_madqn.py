@@ -48,13 +48,14 @@ def training_loop(env, rl, outputs_dir):
             actions = rl.exploration_act(states, n_episodes=eps)
 
             # perform actions on env
-            new_state, global_reward, done, info = env.step(actions)
+            new_states, global_reward, done, info = env.step(actions)
 
             # global reward for each agent
             rewards = [locl_r + global_reward for locl_r in info["local_rewards"]]
 
             # remember experience
-            rl.remember(states, actions, rewards, new_state, done)
+            rl.remember(states, actions, rewards, new_states, done)
+            states = new_states
 
         if eps > cnf.EPISODES_BEFORE_TRAIN:
             rl.learn()
@@ -86,13 +87,13 @@ def evaluation(env, rl, episode, eva_number, outputs_dir):
     for i in range(cnf.EVAL_EPISODES):
         rewards_i = []
         infos_i = []
-        state, _ = env.reset(show_gui=True)
+        states, _ = env.reset(show_gui=True)
         eval_done = False
         in_step = 0
         while not eval_done:
             in_step += 1
-            action = rl.act(state)
-            state, global_reward, eval_done, info = env.step(action)
+            action = rl.act(states)
+            new_states, global_reward, eval_done, info = env.step(action)
             total_reward = sum(info["local_rewards"]) + global_reward
             local_rewards.append(info["local_rewards"])
             if in_step % 5 == 0:
@@ -100,10 +101,12 @@ def evaluation(env, rl, episode, eva_number, outputs_dir):
             rewards_i.append(total_reward)
             infos_i.append(info)
             for agent in range(0, env.n_agents):
-                speeds.append(state[agent][2])
-                ttcs.append(state[agent][7])
-                headways.append(state[agent][8])
-                trip_time_delays.append(state[agent][9])
+                speeds.append(states[agent][2])
+                ttcs.append(states[agent][7])
+                headways.append(states[agent][8])
+                trip_time_delays.append(states[agent][9])
+
+            states = new_states
         env.close()
         rewards.append(rewards_i)
         infos.append(infos_i)
