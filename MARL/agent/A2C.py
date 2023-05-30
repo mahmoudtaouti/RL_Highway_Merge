@@ -145,7 +145,7 @@ class A2C:
         # update actor network
         self.actor_optimizer.zero_grad()
         action_log_probs = self.actor(states_var[:, agent_index, :])
-
+        # TODO : action_log_probs and actions_var[:, agent_index, :] aren't the same dim
         entropy_loss = th.mean(entropy(th.exp(action_log_probs)))
         action_log_probs = th.sum(action_log_probs * actions_var[:, agent_index, :], 1)
 

@@ -53,27 +53,24 @@ class MAA2C:
             self.shared_critic_optimizer = Adam(self.shared_critic.parameters(), lr=critic_lr)
 
         # Create N agents
-        self.agents = []
-        for i in range(self.n_agents):
-            agent = A2C(state_dim=state_dim,
-                        action_dim=action_dim,
-                        memory_capacity=memory_capacity,
-                        reward_gamma=reward_gamma,
-                        reward_scale=reward_scale,
-                        actor_hidden_size=actor_hidden_size,
-                        critic_hidden_size=critic_hidden_size,
-                        critic_loss=critic_loss,
-                        actor_lr=actor_lr,
-                        critic_lr=critic_lr,
-                        optimizer_type=optimizer_type,
-                        batch_size=batch_size,
-                        epsilon_start=epsilon_start,
-                        epsilon_end=epsilon_end,
-                        epsilon_decay=epsilon_decay,
-                        entropy_reg=entropy_reg,
-                        max_grad_norm=max_grad_norm,
-                        use_cuda=use_cuda)
-            self.agents.append(agent)
+        self.agents = [A2C(state_dim=state_dim,
+                           action_dim=action_dim,
+                           memory_capacity=memory_capacity,
+                           reward_gamma=reward_gamma,
+                           reward_scale=reward_scale,
+                           actor_hidden_size=actor_hidden_size,
+                           critic_hidden_size=critic_hidden_size,
+                           critic_loss=critic_loss,
+                           actor_lr=actor_lr,
+                           critic_lr=critic_lr,
+                           optimizer_type=optimizer_type,
+                           batch_size=batch_size,
+                           epsilon_start=epsilon_start,
+                           epsilon_end=epsilon_end,
+                           epsilon_decay=epsilon_decay,
+                           entropy_reg=entropy_reg,
+                           max_grad_norm=max_grad_norm,
+                           use_cuda=use_cuda)] * n_agents
 
     def learn(self):
         """
@@ -118,7 +115,7 @@ class MAA2C:
 
         actions = []
         for agent, state in zip(self.agents, states):
-            action = agent.exploration_action(state)
+            action = agent.exploration_action(state, self.epsilon)
             actions.append(action)
         return tuple(actions)
 
