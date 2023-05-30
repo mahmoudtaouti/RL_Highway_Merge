@@ -30,14 +30,14 @@ def main():
     opt = arg_parse()
     # create environment and agent
     env = OnRampEnv()
-
-    rl = MAA2C(n_agents=env.n_agents, state_dim=env.n_state, action_dim=env.n_action,
-               memory_capacity=cnf.MEMORY_SIZE, batch_size=cnf.BATCH_SIZE,
-               reward_gamma=cnf.REWARD_DISCOUNTED_GAMMA,
-               actor_hidden_size=256, critic_hidden_size=256,
-               epsilon_start=cnf.EPSILON_START, epsilon_end=cnf.EPSILON_END,
-               epsilon_decay=cnf.EPSILON_DECAY,
-               optimizer_type="rmsprop", training_strategy=cnf.TRAINING_STRATEGY)
+    #
+    # rl = MAA2C(n_agents=env.n_agents, state_dim=env.n_state, action_dim=env.n_action,
+    #            memory_capacity=cnf.MEMORY_SIZE, batch_size=cnf.BATCH_SIZE,
+    #            reward_gamma=cnf.REWARD_DISCOUNTED_GAMMA,
+    #            actor_hidden_size=256, critic_hidden_size=256,
+    #            epsilon_start=cnf.EPSILON_START, epsilon_end=cnf.EPSILON_END,
+    #            epsilon_decay=cnf.EPSILON_DECAY,
+    #            optimizer_type="rmsprop", training_strategy=cnf.TRAINING_STRATEGY)
 
     # rl.load(directory="./outputs/17/models", check_point=7)
 
@@ -55,7 +55,7 @@ def main():
         a_1 = 2 if 170 > step > 140 else a_1
         a_2 = 1 if step < 90 else 0
 
-        actions = (a_1, a_2)
+        actions = (3, 0)
         # actions = rl.act(state)
 
         # perform actions on env

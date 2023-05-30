@@ -1,13 +1,12 @@
 import os
 
 from MARL.agent.A2C import A2C
-import torch.nn as nn
 import torch as th
 from torch.optim import Adam
 
 from MARL.common.Memory import ReplayMemory
 from MARL.common.Model import CriticNetwork
-from MARL.common.utils import exponential_epsilon_decay
+from MARL.common.utils import exponential_epsilon_decay, greedy_epsilon_decay
 from util.ModifiedTensorBoard import ModifiedTensorBoard
 
 
@@ -20,8 +19,8 @@ class MAA2C:
     def __init__(self, state_dim, action_dim, n_agents, memory_capacity=10000,
                  reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=128, critic_hidden_size=128,
-                 actor_output_act=nn.functional.softmax, critic_loss="mse",
-                 actor_lr=0.001, critic_lr=0.001, optimizer_type="rmsprop", entropy_reg=0.01,
+                 critic_loss="mse", actor_lr=0.001, critic_lr=0.001,
+                 optimizer_type="rmsprop", entropy_reg=0.01,
                  max_grad_norm=0.5, batch_size=64, epsilon_start=0.9,
                  epsilon_end=0.01, epsilon_decay=0.003,
                  training_strategy="concurrent", use_cuda=False, outputs_dir="logs/"):
@@ -72,7 +71,6 @@ class MAA2C:
                         epsilon_end=epsilon_end,
                         epsilon_decay=epsilon_decay,
                         entropy_reg=entropy_reg,
-                        actor_output_act=actor_output_act,
                         max_grad_norm=max_grad_norm,
                         use_cuda=use_cuda)
             self.agents.append(agent)
@@ -120,7 +118,7 @@ class MAA2C:
 
         actions = []
         for agent, state in zip(self.agents, states):
-            action = agent.exploration_action(state, epsilon=self.epsilon)
+            action = agent.exploration_action(state)
             actions.append(action)
         return tuple(actions)
 

@@ -62,11 +62,28 @@ def exponential_epsilon_decay(epsilon_start, epsilon_end, decay_rate, episode):
     Args:
         epsilon_start (float): Starting value of epsilon.
         epsilon_end (float): Minimum value of epsilon.
-        decay_rate (float): Decay rate of epsilon.
+        decay_rate (float): Decay rate of epsilon e.g 0.01, 0.001, 0.0001.
         episode (int): Current episode number.
 
     Returns:
         float: Decayed epsilon value for the given episode.
     """
     epsilon = epsilon_end + (epsilon_start - epsilon_end) * math.exp(-decay_rate * episode)
+    return epsilon
+
+
+def greedy_epsilon_decay(epsilon, epsilon_end, decay_rate):
+    """
+    Decrease the epsilon over time
+        Args:
+        epsilon (float): Current value of epsilon.
+        epsilon_end (float): Minimum value of epsilon.
+        decay_rate (float): Decay rate of epsilon e.g 0.99 0.995 0.98.
+
+    Returns:
+        float: Decayed epsilon value.
+    """
+    if epsilon > epsilon_end:
+        epsilon *= decay_rate
+        return max(epsilon_end, epsilon)
     return epsilon

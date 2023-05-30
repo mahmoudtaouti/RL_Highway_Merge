@@ -3,14 +3,14 @@ from torch import nn
 
 
 class ActorNet(nn.Module):
-    def __init__(self, state_dim, n_actions):
+    def __init__(self, state_dim, hidden_size, output_size):
         super().__init__()
         self.model = nn.Sequential(
-            nn.Linear(state_dim, 256),
+            nn.Linear(state_dim, hidden_size),
             nn.Tanh(),
-            nn.Linear(256, 128),
+            nn.Linear(hidden_size, hidden_size),
             nn.Tanh(),
-            nn.Linear(128, n_actions),
+            nn.Linear(hidden_size, output_size),
             nn.Softmax(dim=1)
         )
 
@@ -22,6 +22,7 @@ class ActorNetwork(nn.Module):
     """
     A network for actor
     """
+
     def __init__(self, state_dim, hidden_size, output_size, output_activation):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(state_dim, hidden_size)

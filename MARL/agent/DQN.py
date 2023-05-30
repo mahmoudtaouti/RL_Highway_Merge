@@ -104,8 +104,11 @@ class DQN:
 
     # choose an action based on state with random noise added for exploration in training
     def exploration_action(self, state, epsilon=None):
-        # the epsilon greedy is calculated with MARL
-        self.epsilon = epsilon if epsilon else self.epsilon
+        if epsilon:
+            self.epsilon = epsilon
+        else:
+            self.decay_epsilon()
+
         if np.random.rand() < self.epsilon:
             action = np.random.choice(self.action_dim)
         else:

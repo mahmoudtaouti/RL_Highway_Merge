@@ -23,16 +23,19 @@ def main():
                  f"RL option: MAA2C \n"
                  f"Training strategy: {cnf.TRAINING_STRATEGY} \n"
                  "=======================================================", output_dir=outputs_dir)
+    with open('config.py', 'r') as file:
+        configs = file.read()
+        write_to_log(configs, output_dir=outputs_dir)
 
     env = OnRampEnv(exec_num=exec_num)
 
     rl = MAA2C(n_agents=env.n_agents, state_dim=env.n_state, action_dim=env.n_action,
                memory_capacity=cnf.MEMORY_SIZE, batch_size=cnf.BATCH_SIZE,
-               reward_gamma=cnf.REWARD_DISCOUNTED_GAMMA,
-               actor_hidden_size=256, critic_hidden_size=256,
+               reward_gamma=cnf.REWARD_DISCOUNTED_GAMMA,critic_loss=cnf.CRITIC_LOSS,
+               actor_hidden_size=cnf.ACTOR_HIDDEN_SIZE, critic_hidden_size=cnf.CRITIC_HIDDEN_SIZE,
                epsilon_start=cnf.EPSILON_START, epsilon_end=cnf.EPSILON_END,
-               epsilon_decay=cnf.EPSILON_DECAY,max_grad_norm=cnf.MAX_GRAD_NORM,
-               optimizer_type="rmsprop", training_strategy=cnf.TRAINING_STRATEGY, outputs_dir=outputs_dir)
+               epsilon_decay=cnf.EPSILON_DECAY, max_grad_norm=cnf.MAX_GRAD_NORM,
+               optimizer_type=cnf.OPTIMIZER_TYPE, training_strategy=cnf.TRAINING_STRATEGY, outputs_dir=outputs_dir)
 
     # rl.load(directory="./outputs/17/models", check_point=7)
 
@@ -67,10 +70,10 @@ def training_loop(env, rl, outputs_dir):
             rl.remember(states, actions, rewards, new_states, done)
             states = new_states
 
+        env.close()
+
         if eps > cnf.EPISODES_BEFORE_TRAIN:
             rl.learn()
-
-        env.close()
 
         if eps != 0 and eps % cnf.EVAL_INTERVAL == 0:
             evaluation(env, rl, eps, eva_num, outputs_dir)
@@ -110,9 +113,9 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
             infos_i.append(info)
             for agent in range(0, env.n_agents):
                 speeds.append(states[agent][2])
-                ttcs.append(states[agent][7])
-                headways.append(states[agent][8])
-                trip_time.append(states[agent][9])
+                ttcs.append(states[agent][6])
+                headways.append(states[agent][7])
+                trip_time.append(states[agent][8])
             write_to_log(f"Step---------------------------------\n"
                          f"\t* actions : {action}\n"
                          f"\t* agents dones : {info['agents_dones']}\n"

@@ -6,7 +6,7 @@ from torch import nn
 from torch.optim import Adam, RMSprop
 
 from MARL.common.Memory import ReplayMemory
-from MARL.common.Model import CriticNetwork, ActorNetwork
+from MARL.common.Model import CriticNetwork, ActorNet
 from MARL.common.utils import entropy, index_to_one_hot, to_tensor_var
 
 # seed
@@ -32,7 +32,7 @@ class A2C:
                  memory_capacity=10000,
                  reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=32, critic_hidden_size=32,
-                 actor_output_act=nn.functional.linear, critic_loss="mse",
+                 actor_output_act=nn.functional.softmax, critic_loss="mse",
                  actor_lr=0.001, critic_lr=0.001,
                  optimizer_type="rmsprop", entropy_reg=0.01,
                  max_grad_norm=0.5, batch_size=100,
@@ -59,13 +59,14 @@ class A2C:
         self.target_tau = 0.01
 
         # params for epsilon greedy
+        self.epsilon = epsilon_start
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
 
         self.use_cuda = use_cuda and th.cuda.is_available()
 
-        self.actor = ActorNetwork(self.state_dim, actor_hidden_size, self.action_dim, actor_output_act)
+        self.actor = ActorNet(self.state_dim, actor_hidden_size, self.action_dim)
         self.critic = CriticNetwork(self.state_dim, self.action_dim, self.critic_hidden_size, 1)
 
         if self.optimizer_type == "adam":
@@ -107,7 +108,10 @@ class A2C:
         self.critic_optimizer.zero_grad()
         target_values = rewards_var
 
-        critic_loss = nn.MSELoss()(values, target_values)
+        if self.critic_loss == "huber":
+            critic_loss = nn.functional.smooth_l1_loss(values, target_values)
+        else:
+            critic_loss = nn.MSELoss()(values, target_values)
 
         critic_loss.backward()
         if self.max_grad_norm is not None:
@@ -183,10 +187,16 @@ class A2C:
         return softmax_action
 
     # choose an action based on state with random noise added for exploration in training
-    def exploration_action(self, state, epsilon):
+    def exploration_action(self, state, epsilon=None):
+
+        if epsilon:
+            self.epsilon = epsilon
+        else:
+            self.decay_epsilon()
+
         softmax_action = self._softmax_action(state)
         # the epsilon greedy is calculated with MARL
-        if np.random.rand() < epsilon:
+        if np.random.rand() < self.epsilon:
             action = np.random.choice(self.action_dim)
         else:
             action = np.argmax(softmax_action)
@@ -200,6 +210,12 @@ class A2C:
 
     def remember(self, state, action, reward, new_state, done):
         self.memory.push(state, action, reward, new_state, done)
+
+    def decay_epsilon(self):
+        # decrease the exploration rate epsilon over time
+        if self.epsilon > self.epsilon_end:
+            self.epsilon *= self.epsilon_decay
+            self.epsilon = max(self.epsilon_end, self.epsilon)
 
     # evaluate value for a state-action pair
     def value(self, state, action):

@@ -14,7 +14,7 @@ import util.traci_util as tr_util
 import util.common_util as c_util
 
 # state
-# (posX, posY, speed(m/s), edge_id, lane_indx, dist_merge_node, merge_node_visibility(0or1),TTC,headway,tip_time_delay)
+# (posX, posY, speed(m/s), edge_id, lane_indx, dist_merge_node,TTC,headway,tip_time_delay)
 # state space indexes to access val
 s_posX = 0
 s_posY = 1
@@ -22,10 +22,9 @@ s_speed = 2
 s_edge = 3
 s_lane = 4
 s_dist_mrg_nod = 5
-s_mrg_visib = 6
-s_ttc = 7
-s_headway = 8
-s_trip_t_delay = 9
+s_ttc = 6
+s_headway = 7
+s_trip_t_delay = 8
 
 # action ['idle', 'accelerate', 'decelerate','change_right', 'change_left']
 # action indexes to access val
@@ -66,7 +65,7 @@ class OnRampEnv:
     TTC_threshold = 10
     headway_threshold = 1.2
     observation_range = 150  # assume AVs can detect objects within a range of 150 meters
-    communication_range = 2000  # assume AVs using V2V communication with 5G (that's just expected reference range)
+    communication_range = 500  # assume AVs using V2V communication with 5G (that's just expected reference range)
 
     #
     on_ramp_properties = {
@@ -111,14 +110,9 @@ class OnRampEnv:
         ':669_6': 17
     }
 
-    s_mrg_visib_mapping = {
-        False: 0,
-        True: 1
-    }
-
     def __init__(self, exec_num=1e3):
 
-        self.init_state_vals = (0, 0, 0, 0, 0, -1, 0, -1, -1, 0)
+        self.init_state_vals = (0, 0, 0, 0, 0, -1, -1, -1, 0)
         self.state = [self.init_state_vals for _ in self.controlled_vehicles]
 
         self.agent_actions = ['idle', 'accelerate', 'decelerate', 'change_right', 'change_left']
@@ -141,11 +135,6 @@ class OnRampEnv:
         self.show_gui = show_gui
         self.syn_with_carla = syn_with_carla
         self.step_num = 0
-
-        # try:
-        #     self.close()
-        # except:
-        #     pass
 
         self._starSIM()
 
@@ -211,17 +200,16 @@ class OnRampEnv:
         # multi-agent reward
         # Combine local and global rewards using appropriate weighting or aggregation scheme
         # adjust the weights based on the importance of local vs. global rewards
-        glob = self._global_reward(state, actions, new_state)
-        locl = self._local_rewards(state, actions, new_state)
-        locl = [l_r for l_r in locl]
-        return glob, locl
+        global_reward = self._global_reward(state, actions, new_state)
+        local_rewards = self._local_rewards(state, actions, new_state)
+        return global_reward, local_rewards
 
     def _global_reward(self, state, actions, new_state):
         # Calculate global rewards based on the state of the entire system
         # Consider system-level objectives such as trip time delay, safety, efficiency, etc.
         reward = 0.0
         cost = 0.0
-        reference_trip_time_delay = 15  # reference to maximum trip time delay for all vehicles could take
+        reference_trip_time_delay = 20  # reference to maximum trip time delay for all vehicles could take
 
         for indx, veh in enumerate(self.controlled_vehicles):
 
@@ -231,8 +219,7 @@ class OnRampEnv:
             for i, arr_veh in enumerate(self.arrived_vehicles_state["vehicles"]):
                 if arr_veh == veh:
                     t_state = self.arrived_vehicles_state["terminal_state"][i]
-                    reward += 2 if reference_trip_time_delay - t_state[s_trip_t_delay] > 0 else 0
-                    print(f"trip time delay {t_state[s_trip_t_delay]}")
+                    reward += 5 if reference_trip_time_delay - t_state[s_trip_t_delay] > 0 else 0
                     # delete vehicle from list after passing the reward
                     del self.arrived_vehicles_state["vehicles"][i]
                     del self.arrived_vehicles_state["terminal_state"][i]
@@ -242,7 +229,6 @@ class OnRampEnv:
     def _local_rewards(self, state, actions, new_state):
         rewards = []
         for indx, (vehicle, action) in enumerate(zip(self.controlled_vehicles, actions)):
-
             if not self.agent_is_exist(vehicle):
                 rewards.append(0)
             else:
@@ -270,7 +256,7 @@ class OnRampEnv:
         ramp_edge = self.s_edge_mapping[self.on_ramp_edge]
 
         # cost for illegal actions
-        cost += 3 if not self._action_is_legal(agent, action) else 0
+        cost += 1.5 if not self._action_is_legal(agent, action) else 0
 
         # reward for maintaining good speed
         # best case for d_seed + 4 > new_speed > d_seed - 4
@@ -286,7 +272,7 @@ class OnRampEnv:
         # Reward for safe merging with d_speed (no abrupt maneuvers)
         reward += cnf.MERGING_LANE_REWARD / abs(delta_speed) if new_state[indx][s_edge] != ramp_edge else 0
 
-        if headway != -1:
+        if headway > 0 and current_speed > 0:
             r_headway = math.log(headway / (self.headway_threshold * current_speed))
             cost += - cnf.HEADWAY_COST * r_headway if r_headway < 0 else 0
 
@@ -318,9 +304,9 @@ class OnRampEnv:
             cost += delta_speed
 
         # cost for illegal actions
-        cost += 3.0 if not self._action_is_legal(agent, action) else 0.0
+        cost += 1.5 if not self._action_is_legal(agent, action) else 0.0
 
-        if headway != -1:
+        if headway > 0 and current_speed > 0:
             r_headway = math.log(headway / (self.headway_threshold * current_speed))
             cost += - cnf.HEADWAY_COST * r_headway if r_headway < 0 else 0
 
@@ -336,8 +322,7 @@ class OnRampEnv:
 
     def _update_state(self):
         """
-        state(posX, posY, speed(m/s), edge_id, lane_indx, dist_merge_node, merge_node_visibility(0 or 1), TTC,
-        headway, trip_time_delay)
+        state(posX, posY, speed(m/s), edge_id, lane_indx, dist_merge_node, TTC, headway, trip_time_delay)
         """
         def get_state(vehicle):
             posX = traci.vehicle.getPosition(vehicle)[0]
@@ -346,11 +331,10 @@ class OnRampEnv:
             rID = self.s_edge_mapping[traci.vehicle.getRoadID(vehicle)]
             lane = traci.vehicle.getLaneIndex(vehicle)
             dis_m = round(tr_util.get_distance_to_merge_point(vehicle, self.merging_node), 2)
-            mer_pnt_visib = self.s_mrg_visib_mapping[dis_m < self.observation_range]
             ttc = round(tr_util.ttc_with_ramp_veh(vehicle, self.on_ramp_edge), 2)
             headway = round(tr_util.headway_distance(vehicle), 2)
             trip_time_delay = round(tr_util.trip_time_delay(vehicle), 2)
-            return [posX, posY, sp, rID, lane, dis_m, mer_pnt_visib, ttc, headway, trip_time_delay]
+            return [posX, posY, sp, rID, lane, dis_m, ttc, headway, trip_time_delay]
 
         states = []
         for veh in self.controlled_vehicles:
@@ -380,14 +364,7 @@ class OnRampEnv:
                     self._act(vehicle, action)
                 else:
                     '''actions for highway vehicles'''
-                    # when vehicle observe the ramp on this highway
-                    dis_to_mer = tr_util.get_distance_to_merge_point(vehicle, self.merging_node)
                     self._act(vehicle, action)
-                    if dis_to_mer <= self.observation_range:
-                        # self.state_space[indx][s_ttc]
-                        self._act(vehicle, action)
-                    else:
-                        self._act(vehicle, action)
             else:
                 # TODO illegal action cost
                 pass
