@@ -45,8 +45,12 @@ def to_tensor_var(x, use_cuda=False, dtype="float"):
 
 
 def agg_list_stat(agg_list):
-    # l: [ [...], [...], [...] ]
-    # l_i: result of each step in the i-th episode
+    """
+     l: [ [...], [...], [...] ]
+     l_i: result of each step in the i-th episode
+     Returns:
+         mean, std, max, min
+    """
     s = [np.sum(np.array(l_i), 0) for l_i in agg_list]
     s_mu = np.mean(np.array(s), 0)
     s_std = np.std(np.array(s), 0)

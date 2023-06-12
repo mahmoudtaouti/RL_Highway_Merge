@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch as th
 
 from MARL.agent.DQN import DQN
-from MARL.agent.DQN_TF import DQN_TF
-from MARL.common.Memory import ReplayMemory
 from MARL.common.utils import exponential_epsilon_decay
 from util.ModifiedTensorBoard import ModifiedTensorBoard
 
@@ -18,6 +16,7 @@ class MADQN:
     - exploration action with exponential epsilon greedy
     @mahmoudtaouti
     """
+
     def __init__(self, state_dim, action_dim, n_agents, memory_capacity=10000,
                  reward_gamma=0.99, reward_scale=1.,
                  actor_hidden_size=128, target_update_freq=50,
@@ -25,7 +24,7 @@ class MADQN:
                  actor_lr=0.001, optimizer_type="adam",
                  max_grad_norm=0.5, batch_size=64, epsilon_start=0.9,
                  epsilon_end=0.01, epsilon_decay=0.003,
-                 training_strategy="concurrent", use_cuda=False, model_type="torch"):
+                 training_strategy="concurrent", use_cuda=False, model_type="torch", outputs_dir="logs/"):
 
         assert training_strategy in ["concurrent", "centralized"]
         assert model_type in ["torch", "tensor"]
@@ -45,75 +44,41 @@ class MADQN:
         self.epsilon_decay = epsilon_decay
 
         self.model_type = model_type
-        self.tensorboard = ModifiedTensorBoard()
+        self.tensorboard = ModifiedTensorBoard(outputs_dir)
         self.actor_output_act = actor_output_act
 
-        self.shared_memory = None
-
-        if training_strategy == "centralized":
-            self.shared_memory = ReplayMemory(capacity=memory_capacity)
-
         # Create N agents
-        self.agents = []
-        for i in range(self.n_agents):
-            if model_type == "torch":
-                agent = DQN(state_dim=state_dim,
-                            action_dim=action_dim,
-                            memory_capacity=memory_capacity,
-                            reward_gamma=reward_gamma,
-                            reward_scale=reward_scale,
-                            actor_hidden_size=actor_hidden_size,
-                            critic_loss=critic_loss,
-                            actor_lr=actor_lr,
-                            target_update_freq=target_update_freq,
-                            optimizer_type=optimizer_type,
-                            batch_size=batch_size,
-                            epsilon_start=epsilon_start,
-                            epsilon_end=epsilon_end,
-                            epsilon_decay=epsilon_decay,
-                            max_grad_norm=max_grad_norm,
-                            use_cuda=use_cuda)
-            else:
-                agent = DQN_TF(state_dim=state_dim,
-                               action_dim=action_dim,
-                               memory_capacity=memory_capacity,
-                               reward_gamma=reward_gamma,
-                               reward_scale=reward_scale,
-                               actor_hidden_size=actor_hidden_size,
-                               actor_lr=actor_lr,
-                               target_update_freq=target_update_freq,
-                               optimizer_type=optimizer_type,
-                               batch_size=batch_size,
-                               epsilon_start=epsilon_start,
-                               epsilon_end=epsilon_end,
-                               epsilon_decay=epsilon_decay)
-            self.agents.append(agent)
+        self.agents = [DQN(state_dim=state_dim,
+                           action_dim=action_dim,
+                           memory_capacity=memory_capacity,
+                           reward_gamma=reward_gamma,
+                           reward_scale=reward_scale,
+                           actor_hidden_size=actor_hidden_size,
+                           critic_loss=critic_loss,
+                           actor_lr=actor_lr,
+                           target_update_freq=target_update_freq,
+                           optimizer_type=optimizer_type,
+                           batch_size=batch_size,
+                           epsilon_start=epsilon_start,
+                           epsilon_end=epsilon_end,
+                           epsilon_decay=epsilon_decay,
+                           max_grad_norm=max_grad_norm,
+                           use_cuda=use_cuda)] * n_agents
 
     def learn(self):
         """
         train for each agent the gathered experiences
-        agent.shared_learning: centralized learning strategy that share the same critic network
-        agent.learn: independent (concurrent) learning
         """
-        for index, agent in enumerate(self.agents):
-            if self.training_strategy == "centralized":
-                shared_batch = self.shared_memory.sample(self.batch_size)
-                agent.shared_learning(n_agents=self.n_agents,
-                                      agent_index=index,
-                                      shared_batch_sample=shared_batch)
-            else:
-                agent.learn()
+        for agent in self.agents:
+            agent.learn()
 
     def remember(self, states, actions, rewards, new_states, dones):
         """
         push experiences to replay memory
         """
         dones = dones if isinstance(dones, list) else [dones] * self.n_agents
-        if self.training_strategy == "centralized":
-            self.shared_memory.push(states, actions, rewards, new_states, dones)
-        else:
-            for agent, s, a, r, n_s, d in zip(self.agents, states, actions, rewards, new_states, dones):
-                agent.remember(s, a, r, n_s, d)
+        for agent, s, a, r, n_s, d in zip(self.agents, states, actions, rewards, new_states, dones):
+            agent.remember(s, a, r, n_s, d)
 
     def exploration_act(self, states, n_episodes):
         """
@@ -132,7 +97,6 @@ class MADQN:
         for agent, state in zip(self.agents, states):
             action = agent.exploration_action(state, epsilon=self.epsilon)
             actions.append(action)
-        print(actions)
         return tuple(actions)
 
     def update_targets(self):
@@ -152,7 +116,6 @@ class MADQN:
         for agent, state in zip(self.agents, states):
             action = agent.action(state)
             actions.append(action)
-        print(actions)
         return tuple(actions)
 
     def save(self, out_dir, checkpoint_num, global_step):
@@ -175,8 +138,18 @@ class MADQN:
                 actor_file_path = checkpoint_dir + f"/eps{global_step}_actor_{index}.model"
                 agent.actor.save(actor_file_path)
 
-    def load(self, directory, global_step=None):
+    def load(self, directory, check_point=None):
         """
         load saved models
         """
-        raise NotImplementedError()
+        if not os.path.exists(directory):
+            raise FileNotFoundError(f"The directory '{directory}' does not exist.")
+
+        checkpoint_dir = os.path.join(directory, f"checkpoint-{check_point}") if check_point else directory
+
+        for index, agent in enumerate(self.agents):
+            actor_file_path = os.path.join(checkpoint_dir, f"actor_{index}.pt")
+
+            checkpoint = th.load(actor_file_path)
+            agent.actor.load_state_dict(checkpoint['model_state_dict'])
+            agent.actor_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])

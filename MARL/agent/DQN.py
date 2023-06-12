@@ -1,11 +1,17 @@
 import torch as th
 from torch import nn
 from torch.optim import Adam, RMSprop
-
+import random
+import config as cnf
 import numpy as np
 from MARL.common.Memory import ReplayMemory
-from MARL.common.Model import ActorNetwork
+from MARL.common.Model import QNetwork
 from MARL.common.utils import identity, to_tensor_var
+
+# seed
+np.random.seed(cnf.SEED)
+th.manual_seed(cnf.SEED)
+random.seed(cnf.SEED)
 
 
 class DQN:
@@ -17,6 +23,7 @@ class DQN:
     - train model and update values on batch sample
     - save model
     """
+
     def __init__(self, state_dim, action_dim,
                  memory_capacity=10000, batch_size=100,
                  reward_gamma=0.99, reward_scale=1.,
@@ -24,7 +31,7 @@ class DQN:
                  actor_hidden_size=128, actor_output_act=identity,
                  critic_loss="mse", actor_lr=0.001,
                  optimizer_type="rmsprop", max_grad_norm=0.5,
-                 epsilon_start=0.9, epsilon_end=0.01, epsilon_decay=0.001,
+                 epsilon_start=0.9, epsilon_end=0.01, epsilon_decay=0.998,
                  use_cuda=True):
 
         self.state_dim = state_dim
@@ -48,14 +55,15 @@ class DQN:
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
+        self.train_count = 0
 
         self.use_cuda = use_cuda and th.cuda.is_available()
 
-        self.actor = ActorNetwork(self.state_dim, self.actor_hidden_size,
-                                  self.action_dim, self.actor_output_act)
+        self.actor = QNetwork(self.state_dim, self.actor_hidden_size,
+                              self.action_dim)
 
-        self.target = ActorNetwork(self.state_dim, self.actor_hidden_size,
-                                   self.action_dim, self.actor_output_act)
+        self.target = QNetwork(self.state_dim, self.actor_hidden_size,
+                               self.action_dim)
         self.update_target()
 
         if self.optimizer_type == "adam":
@@ -90,14 +98,56 @@ class DQN:
         # update value network
         self.actor_optimizer.zero_grad()
 
-        loss = th.nn.MSELoss()(current_q, target_q)
+        if self.critic_loss == "huber":
+            loss = th.nn.functional.smooth_l1_loss(current_q, target_q)
+        else:
+            loss = th.nn.MSELoss()(current_q, target_q)
         loss.backward()
         if self.max_grad_norm is not None:
             nn.utils.clip_grad_norm(self.actor.parameters(), self.max_grad_norm)
+
         self.actor_optimizer.step()
 
+        self.train_count += 1
+        if self.train_count % self.target_update_freq == 0:
+            self.update_target()
+
     def shared_learning(self, n_agents, agent_index, shared_batch_sample):
-        self.learn()
+
+        states_var = to_tensor_var(shared_batch_sample.states, self.use_cuda).view(-1, self.state_dim * n_agents)
+        actions_var = to_tensor_var(shared_batch_sample.actions, self.use_cuda, "long").view(-1, n_agents, 1)
+        rewards_var = to_tensor_var(shared_batch_sample.rewards, self.use_cuda).view(-1, n_agents, 1)
+        next_states_var = to_tensor_var(shared_batch_sample.next_states, self.use_cuda).view(-1, self.state_dim * n_agents)
+        dones_var = to_tensor_var(shared_batch_sample.dones, self.use_cuda).view(-1, n_agents)
+
+        # compute Q(s_t, a) - the model computes Q(s_t), then we select the
+        # columns of actions taken
+        current_q = self.actor(states_var).gather(1, actions_var[:, agent_index, :])
+
+        # compute V(s_{t+1}) for all next states and all actions,
+        # and we then take max_a { V(s_{t+1}) }
+        next_state_action_values = self.target(next_states_var).detach()
+        next_q = th.max(next_state_action_values, 1)[0].view(-1, 1)
+        # compute target q by: r + gamma * max_a { V(s_{t+1}) }
+        target_q = self.reward_scale * rewards_var[:, n_agents, :] + self.reward_gamma * next_q * (1. - dones_var[:, agent_index, :])
+
+        # update value network
+        self.actor_optimizer.zero_grad()
+
+        if self.critic_loss == "huber":
+            loss = th.nn.functional.smooth_l1_loss(current_q, target_q)
+        else:
+            loss = th.nn.MSELoss()(current_q, target_q)
+        loss.backward()
+        if self.max_grad_norm is not None:
+            nn.utils.clip_grad_norm(self.actor.parameters(), self.max_grad_norm)
+
+        self.actor_optimizer.step()
+
+        self.train_count += 1
+        if self.train_count % self.target_update_freq == 0:
+            self.update_target()
+
 
     def update_target(self):
         self.target.load_state_dict(self.actor.state_dict())
@@ -132,7 +182,7 @@ class DQN:
     def decay_epsilon(self):
         # decrease the exploration rate epsilon over time
         if self.epsilon > self.epsilon_end:
-            self.epsilon *= self.epsilon_decay
+            # self.epsilon *= self.epsilon_decay
             self.epsilon = max(self.epsilon_end, self.epsilon)
 
     def save(self, global_step, out_dir='/model'):

@@ -1,3 +1,5 @@
+import os
+
 from keras.callbacks import TensorBoard
 import tensorflow as tf
 from datetime import datetime
@@ -12,7 +14,7 @@ class ModifiedTensorBoard(TensorBoard):
         self.step = 1
         # Define your log directory
         current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-        log_dir = log_dir + current_time
+        log_dir = os.path.join(log_dir, current_time)
         # Create a summary writer
         self.writer = tf.summary.create_file_writer(log_dir)
 

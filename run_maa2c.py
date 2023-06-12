@@ -18,10 +18,8 @@ def main():
     outputs_dir = f"./outputs/{exec_num}/"
     os.makedirs(outputs_dir, exist_ok=True)
 
-    write_to_log(f"EXEC==================================================\n"
+    write_to_log(f"======================================================\n"
                  f"Execution number : {exec_num}\n"
-                 f"RL option: MAA2C \n"
-                 f"Training strategy: {cnf.TRAINING_STRATEGY} \n"
                  "=======================================================", output_dir=outputs_dir)
     with open('config.py', 'r') as file:
         configs = file.read()
@@ -31,13 +29,13 @@ def main():
 
     rl = MAA2C(n_agents=env.n_agents, state_dim=env.n_state, action_dim=env.n_action,
                memory_capacity=cnf.MEMORY_SIZE, batch_size=cnf.BATCH_SIZE,
-               reward_gamma=cnf.REWARD_DISCOUNTED_GAMMA,critic_loss=cnf.CRITIC_LOSS,
+               reward_gamma=cnf.REWARD_DISCOUNTED_GAMMA, critic_loss=cnf.CRITIC_LOSS,
                actor_hidden_size=cnf.ACTOR_HIDDEN_SIZE, critic_hidden_size=cnf.CRITIC_HIDDEN_SIZE,
                epsilon_start=cnf.EPSILON_START, epsilon_end=cnf.EPSILON_END,
                epsilon_decay=cnf.EPSILON_DECAY, max_grad_norm=cnf.MAX_GRAD_NORM,
                optimizer_type=cnf.OPTIMIZER_TYPE, training_strategy=cnf.TRAINING_STRATEGY, outputs_dir=outputs_dir)
 
-    # rl.load(directory="./outputs/17/models", check_point=7)
+    # rl.load(directory="./outputs/38/models", check_point=72)
 
     training_loop(env, rl, outputs_dir)
 
@@ -108,7 +106,7 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
             new_states, global_reward, eval_done, info = env.step(action)
             total_reward = sum(info["local_rewards"]) + global_reward
             local_rewards.append(info["local_rewards"])
-            env.render(eval_number) if i == 0 else None
+            # env.render(eval_number) if i == 0 else None
             rewards_i.append(total_reward)
             infos_i.append(info)
             for agent in range(0, env.n_agents):

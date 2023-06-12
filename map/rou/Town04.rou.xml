@@ -8,11 +8,51 @@
     <!-- ramp to highway route -->
     <route id="route1" edges="44.0.00 39.0.00 38.0.00"/>
 
-    <!--<flow id="flow_0" begin="0" end="20" departLane="2" route="route0" type="vehicle.audi.a2" probability="0.7"/>
-    <flow id="flow_1" begin="0" end="20" departLane="3" route="route0" type="vehicle.audi.a2" probability="0.5"/>
-    <flow id="flow_3" begin="0" end="20" departLane="4" route="route0" type="vehicle.audi.a2" probability="0.3"/>-->
+    <vehicle id="0" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="0" departLane="1" speedFactor="1.2"/>
+    <vehicle id="1" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="1.6" speedFactor="1.2"/>
 
-    <vehicle id="0"  type="vehicle.tesla.model3" color="1,0,0" route="route0" depart="0" departLane="1" speedFactor="1.2"/>
-    <vehicle id="1"  type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="1.6" speedFactor="1.2"/>
+    <vehicle id="10" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="1.6" departLane="2" speedFactor="1.2"/>
+    <vehicle id="11" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route0" depart="1.6" departLane="3" speedFactor="1.2"/>
+    <vehicle id="12" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="4" departLane="2" speedFactor="1.2"/>
+    <vehicle id="13" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route0" depart="4" departLane="3" speedFactor="1.2"/>
+
+    <vehicle id="2" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="4" departLane="1" speedFactor="1.2"/>
+    <vehicle id="3" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="5.6" speedFactor="1.2"/>
+
+<!--    <vehicle id="14" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="8" departLane="2" speedFactor="1.2"/>-->
+<!--    <vehicle id="15" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route0" depart="9" departLane="3" speedFactor="1.2"/>-->
+<!--    <vehicle id="19" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="10" speedFactor="1.2"/>-->
+
+<!--    <vehicle id="4" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="10" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="5" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="12" speedFactor="1.2"/>-->
+
+
+<!--    <vehicle id="6" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="14" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="7" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="16" speedFactor="1.2"/>-->
+
+<!--    <vehicle id="16" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="16" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="18" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="17" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="17" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="17" speedFactor="1.2"/>-->
+
+<!--    <vehicle id="8" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="18" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="9" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="20" speedFactor="1.2"/>-->
+
+
+
+
+
+
+
+<!--    -->
+<!--    <vehicle id="20" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="0" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="21" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="1.6" speedFactor="1.2"/>-->
+<!--    <vehicle id="22" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="6" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="23" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="8" speedFactor="1.2"/>-->
+<!--    <vehicle id="24" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="10" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="25" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="12" speedFactor="1.2"/>-->
+<!--    <vehicle id="26" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="14" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="27" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="16" speedFactor="1.2"/>-->
+<!--    <vehicle id="28" sigma="0.8" type="vehicle.tesla.model3" color="0,1,1" route="route0" depart="18" departLane="1" speedFactor="1.2"/>-->
+<!--    <vehicle id="29" sigma="0.8" type="vehicle.tesla.model3" color="1,0,0" route="route1" depart="20" speedFactor="1.2"/>-->
 
 </routes>

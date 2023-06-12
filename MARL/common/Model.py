@@ -78,3 +78,23 @@ class ActorCriticNetwork(nn.Module):
         act = self.actor_output_act(self.actor_linear(out))
         val = self.critic_linear(out)
         return act, val
+
+
+class QNetwork(nn.Module):
+    """
+    A network for the Q-function in DQN
+    """
+    def __init__(self, state_dim, hidden_size, action_dim):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Linear(state_dim, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, action_dim),
+        )
+
+    def __call__(self, state):
+        return self.model(state)
+
+

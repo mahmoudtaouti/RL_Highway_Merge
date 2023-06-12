@@ -9,7 +9,7 @@ def accelerate(vehicle_id, acceleration=0.20):
 
 
 # Decelerate a vehicle
-def decelerate(vehicle_id, deceleration=0.37):
+def decelerate(vehicle_id, deceleration=0.32):
     current_speed = traci.vehicle.getSpeed(vehicle_id)
     target_speed = current_speed - deceleration
     traci.vehicle.setSpeed(vehicle_id, target_speed)

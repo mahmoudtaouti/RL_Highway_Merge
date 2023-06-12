@@ -13,15 +13,15 @@ def to_ndarray(arr):
 
 
 def write_to_log(message, output_dir='ver/log.txt'):
-    path = output_dir + 'log.txt'
+    path = os.path.join(output_dir, 'log.txt')
     with open(path, 'a') as file:
         file.write(message + '\n')
 
 
 def increment_counter():
-    '''
+    """
     count each execute and give current counte number
-    '''
+    """
     counter_file = "exec.num"
 
     if os.path.exists(counter_file):

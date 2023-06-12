@@ -51,8 +51,8 @@ class OnRampEnv:
     show_gui = False
     syn_with_carla = False
     step_num = 0
-    start_step = 34
-    max_steps = 600
+    start_step = 241  # 2veh;33 , 4veh;161, 6veh;241, 8veh;321, 10veh;401
+    max_steps = 700
 
     # simulation var
     on_ramp_edge = "44.0.00"
@@ -61,7 +61,8 @@ class OnRampEnv:
     highway_edges = ("40.0.00", "39.0.00", "38.0.00")
 
     # agents var
-    controlled_vehicles = ["0", "1"]
+    controlled_vehicles = ["0", "1", "2", "3", "4", "5"]
+
     TTC_threshold = 10
     headway_threshold = 1.2
     observation_range = 150  # assume AVs can detect objects within a range of 150 meters
@@ -116,6 +117,7 @@ class OnRampEnv:
         self.state = [self.init_state_vals for _ in self.controlled_vehicles]
 
         self.agent_actions = ['idle', 'accelerate', 'decelerate', 'change_right', 'change_left']
+        # self.agent_actions = ['idle', 'accelerate', 'decelerate']
         # Define the joint action space
         joint_action_space = list(itertools.product(self.agent_actions, repeat=2))
         self.action_space = np.array(joint_action_space)
@@ -129,6 +131,7 @@ class OnRampEnv:
         self.finished_at = 0.0
 
         self.arrived_vehicles_state = {"vehicles": [], "terminal_state": []}
+        self.collided_vehicles = []
 
     def reset(self, show_gui=False, syn_with_carla=False):
 
@@ -149,13 +152,12 @@ class OnRampEnv:
                 traci.vehicle.setSpeedMode(vehID, 32)
                 traci.vehicle.setLaneChangeMode(vehID, 512)
                 traci.vehicle.setAccel(vehID, 0)
+                traci.vehicle.setSpeed(vehID, 20)
             else:
                 raise AssertionError(f"Make sure vehicle {vehID} is departed")
 
         self._update_state()
-
-        state = c_util.to_ndarray(self.state)
-        return state, {}
+        return c_util.to_ndarray(self.state), {}
 
     def step(self, actions):
         """
@@ -265,12 +267,12 @@ class OnRampEnv:
         # assigning delta ratio to very low or high speed
         delta_speed = (new_speed - d_speed) / d_speed
         if delta_speed < 0:
-            cost += 0.4 * abs(delta_speed)
+            cost += 0.7 * abs(delta_speed)
         elif new_speed > max_speed:
             cost += delta_speed
 
         # Reward for safe merging with d_speed (no abrupt maneuvers)
-        reward += cnf.MERGING_LANE_REWARD / abs(delta_speed) if new_state[indx][s_edge] != ramp_edge else 0
+        reward += cnf.MERGING_LANE_REWARD / (abs(delta_speed) + 0.9999) if new_state[indx][s_edge] != ramp_edge else 0
 
         if headway > 0 and current_speed > 0:
             r_headway = math.log(headway / (self.headway_threshold * current_speed))
@@ -342,6 +344,7 @@ class OnRampEnv:
                 states.append(self.init_state_vals)
             elif self.agent_is_collide(veh):
                 states.append(self.init_state_vals)
+                self.collided_vehicles.append(veh)
                 self.remove_agent(veh)
                 print(f"agent {veh},cause collision, removed from Env")
             elif self.agent_is_arrived(veh):
@@ -366,7 +369,7 @@ class OnRampEnv:
                     '''actions for highway vehicles'''
                     self._act(vehicle, action)
             else:
-                # TODO illegal action cost
+                # illegal action
                 pass
 
     @staticmethod
@@ -460,8 +463,8 @@ class OnRampEnv:
     def remove_agent(veh):
         traci.vehicle.remove(veh)
 
-    def render(self, episode=0):
-        output_folder = f"./outputs/{self.exec_num}/record"
+    def render(self, episode=0, output_dir=None):
+        output_folder = output_dir if output_dir else f"./outputs/{self.exec_num}/record"
         os.makedirs(output_folder, exist_ok=True)
         output_folder = f"{output_folder}/eva{episode}"
         os.makedirs(output_folder, exist_ok=True)

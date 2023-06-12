@@ -1,13 +1,19 @@
 import os
-
+import numpy as np
+import config as cnf
 from MARL.agent.A2C import A2C
 import torch as th
 from torch.optim import Adam
-
+import random
 from MARL.common.Memory import ReplayMemory
 from MARL.common.Model import CriticNetwork
-from MARL.common.utils import exponential_epsilon_decay, greedy_epsilon_decay
+from MARL.common.utils import exponential_epsilon_decay
 from util.ModifiedTensorBoard import ModifiedTensorBoard
+
+# seed
+np.random.seed(cnf.SEED)
+th.manual_seed(cnf.SEED)
+random.seed(cnf.SEED)
 
 
 class MAA2C:
@@ -23,7 +29,7 @@ class MAA2C:
                  optimizer_type="rmsprop", entropy_reg=0.01,
                  max_grad_norm=0.5, batch_size=64, epsilon_start=0.9,
                  epsilon_end=0.01, epsilon_decay=0.003,
-                 training_strategy="concurrent", use_cuda=False, outputs_dir="logs/"):
+                 training_strategy="concurrent", use_cuda=False, outputs_dir="logs/", is_evaluation=False):
 
         assert training_strategy in ["concurrent", "centralized"]
 
@@ -40,19 +46,20 @@ class MAA2C:
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
-
+        self.is_evaluation = is_evaluation
         self.tensorboard = ModifiedTensorBoard(outputs_dir)
 
         self.shared_critic = None
         self.shared_memory = None
         self.shared_critic_optimizer = None
 
-        if training_strategy == "centralized":
+        if training_strategy == "centralized" and not is_evaluation:
             self.shared_memory = ReplayMemory(capacity=memory_capacity)
-            self.shared_critic = CriticNetwork(state_dim * n_agents, action_dim * n_agents, critic_hidden_size, 1)
+            self.shared_critic = CriticNetwork(state_dim * n_agents, action_dim * n_agents,
+                                               cnf.SHARED_CRITIC_HIDDEN_SIZE, 1)
             self.shared_critic_optimizer = Adam(self.shared_critic.parameters(), lr=critic_lr)
 
-        # Create N agents
+        # Create N agents that share the same model
         self.agents = [A2C(state_dim=state_dim,
                            action_dim=action_dim,
                            memory_capacity=memory_capacity,
@@ -70,6 +77,7 @@ class MAA2C:
                            epsilon_decay=epsilon_decay,
                            entropy_reg=entropy_reg,
                            max_grad_norm=max_grad_norm,
+                           marl_training_strategy=training_strategy,
                            use_cuda=use_cuda)] * n_agents
 
     def learn(self):
@@ -186,25 +194,21 @@ class MAA2C:
         for index, agent in enumerate(self.agents):
             actor_file_path = os.path.join(checkpoint_dir, f"actor_{index}.pt")
             critic_file_path = os.path.join(checkpoint_dir, f"critic_{index}.pt")
-
-            if not os.path.exists(actor_file_path):
-                raise FileNotFoundError(f"The actor model file '{actor_file_path}' does not exist.")
-
-            if not os.path.exists(critic_file_path):
-                raise FileNotFoundError(f"The critic model file '{critic_file_path}' does not exist.")
+            shared_critic_file_path = os.path.join(checkpoint_dir, f"shared_critic.pt")
 
             checkpoint = th.load(actor_file_path)
             agent.actor.load_state_dict(checkpoint['model_state_dict'])
             agent.actor_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
             # TODO : correct load for centralized case
-            if self.training_strategy == "centralized":
-                critic_checkpoint = th.load(critic_file_path)
-                self.shared_critic.load_state_dict(critic_checkpoint['model_state_dict'])
-                self.shared_critic_optimizer.load_state_dict(critic_checkpoint['optimizer_state_dict'])
-            else:
-                critic_checkpoint = th.load(critic_file_path)
-                agent.critic.load_state_dict(critic_checkpoint['model_state_dict'])
-                agent.critic_optimizer.load_state_dict(critic_checkpoint['optimizer_state_dict'])
+            if not self.is_evaluation:
+                if self.training_strategy == "centralized":
+                    critic_checkpoint = th.load(shared_critic_file_path)
+                    self.shared_critic.load_state_dict(critic_checkpoint['model_state_dict'])
+                    self.shared_critic_optimizer.load_state_dict(critic_checkpoint['optimizer_state_dict'])
+                else:
+                    critic_checkpoint = th.load(critic_file_path)
+                    agent.critic.load_state_dict(critic_checkpoint['model_state_dict'])
+                    agent.critic_optimizer.load_state_dict(critic_checkpoint['optimizer_state_dict'])
 
         print("Models loaded successfully.")

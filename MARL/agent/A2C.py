@@ -1,5 +1,5 @@
 import random
-
+import config as cnf
 import numpy as np
 import torch as th
 from torch import nn
@@ -10,10 +10,9 @@ from MARL.common.Model import CriticNetwork, ActorNet
 from MARL.common.utils import entropy, index_to_one_hot, to_tensor_var
 
 # seed
-seed = 10
-np.random.seed(seed)
-th.manual_seed(seed)
-random.seed(seed)
+np.random.seed(cnf.SEED)
+th.manual_seed(cnf.SEED)
+random.seed(cnf.SEED)
 
 
 class A2C:
@@ -37,8 +36,7 @@ class A2C:
                  optimizer_type="rmsprop", entropy_reg=0.01,
                  max_grad_norm=0.5, batch_size=100,
                  epsilon_start=0.9, epsilon_end=0.01, epsilon_decay=0.003,
-                 use_cuda=True):
-        # TODO : add execution mode ["single_agent", "multi_agent"]
+                 marl_training_strategy="concurrent", use_cuda=True):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -65,6 +63,7 @@ class A2C:
         self.epsilon_decay = epsilon_decay
 
         self.use_cuda = use_cuda and th.cuda.is_available()
+        self.marl_training_strategy = marl_training_strategy
 
         self.actor = ActorNet(self.state_dim, actor_hidden_size, self.action_dim)
         self.critic = CriticNetwork(self.state_dim, self.action_dim, self.critic_hidden_size, 1)
@@ -81,8 +80,12 @@ class A2C:
     # train on a roll_out batch
     def learn(self):
         """
-         Do not train until exploration is enough
+        Note:
+            - use learn() after pushing some experiences to the replay memory
+            - if the environment is multi-agent with centralized training consider use shared_learning()
         """
+
+        assert self.marl_training_strategy == "concurrent"
 
         batch = self.memory.sample(self.batch_size)
         states_var = to_tensor_var(batch.states, self.use_cuda).view(-1, self.state_dim)
@@ -129,23 +132,19 @@ class A2C:
          update and synchronize the shared critic network parameters during the learning process.
          @mahmoudtaouti
         """
+
+        assert self.marl_training_strategy == "centralized"
         states_var = to_tensor_var(shared_batch_sample.states, self.use_cuda).view(-1, n_agents, self.state_dim)
-        actions_var = to_tensor_var(shared_batch_sample.actions, self.use_cuda).view(-1, n_agents, self.action_dim)
-
-        print(f"state {states_var}")
-        print(f"state len {len(states_var)}")
-
-        print(f"action {actions_var}")
-        print(f"action len {len(actions_var)}")
-
+        one_hot_actions = [index_to_one_hot(a, self.action_dim) for a in shared_batch_sample.actions]
+        actions_var = to_tensor_var(one_hot_actions, self.use_cuda).view(-1, n_agents, self.action_dim)
         rewards_var = to_tensor_var(shared_batch_sample.rewards, self.use_cuda).view(-1, n_agents, 1)
+
         whole_states_var = states_var.view(-1, n_agents * self.state_dim)
         whole_actions_var = actions_var.view(-1, n_agents * self.action_dim)
 
         # update actor network
         self.actor_optimizer.zero_grad()
         action_log_probs = self.actor(states_var[:, agent_index, :])
-        # TODO : action_log_probs and actions_var[:, agent_index, :] aren't the same dim
         entropy_loss = th.mean(entropy(th.exp(action_log_probs)))
         action_log_probs = th.sum(action_log_probs * actions_var[:, agent_index, :], 1)
 
@@ -169,7 +168,7 @@ class A2C:
 
         critic_loss.backward()
         if self.max_grad_norm is not None:
-            nn.utils.clip_grad_norm(shared_critic.parameters(), self.max_grad_norm)
+            nn.utils.clip_grad_norm_(shared_critic.parameters(), self.max_grad_norm)
         shared_critic_optim.step()
 
     # predict softmax action based on state
