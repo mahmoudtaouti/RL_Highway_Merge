@@ -1,5 +1,5 @@
 import random
-import config as cnf
+import MADQN_config as cnf
 import numpy as np
 import torch as th
 from torch import nn

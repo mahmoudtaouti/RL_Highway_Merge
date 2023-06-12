@@ -6,7 +6,7 @@ import itertools
 
 import traci
 import sumolib
-import config as cnf
+import MADQN_config as cnf
 
 import random
 from sync_simulation import TraCiSync
@@ -61,7 +61,7 @@ class OnRampEnv:
     highway_edges = ("40.0.00", "39.0.00", "38.0.00")
 
     # agents var
-    controlled_vehicles = ["0", "1", "2", "3", "4", "5"]
+    controlled_vehicles = ["0", "1", "2", "3", "4", "5", "10", "11", "12", "13", "14", "15"]
 
     TTC_threshold = 10
     headway_threshold = 1.2
@@ -163,7 +163,7 @@ class OnRampEnv:
         """
         take one-step
         Returns:
-            new_states, rewards, done, info {"agents_dones" "agents_actions" "local_rewards" "agents_info"}
+            new_states, tuple(rewards), done, info {"agents_dones" "agents_actions" "local_rewards" "agents_info"}
         """
         done = False
 
@@ -179,7 +179,7 @@ class OnRampEnv:
             done = True
             self.finished_at = self.step_num
             self.step_num = 0
-            return c_util.to_ndarray(self.state), 0, done, info
+            return c_util.to_ndarray(self.state), [0] * self.n_agents, done, info
 
         # before take actions
         state = self.state
@@ -192,11 +192,15 @@ class OnRampEnv:
         global_reward, local_rewards = self._reward(state, actions, new_state)
 
         info["local_rewards"] = local_rewards
+        info["global_rewards"] = global_reward
+
+        rewards = [locl_r + global_reward[index] for index, locl_r in enumerate(local_rewards)]
+
         new_state = c_util.to_ndarray(new_state)
         info["agents_info"] = new_state
 
         self.step_num += 1
-        return new_state, global_reward, done, info
+        return new_state, rewards, done, info
 
     def _reward(self, state, actions, new_state):
         # multi-agent reward
@@ -209,11 +213,14 @@ class OnRampEnv:
     def _global_reward(self, state, actions, new_state):
         # Calculate global rewards based on the state of the entire system
         # Consider system-level objectives such as trip time delay, safety, efficiency, etc.
-        reward = 0.0
-        cost = 0.0
-        reference_trip_time_delay = 20  # reference to maximum trip time delay for all vehicles could take
 
-        for indx, veh in enumerate(self.controlled_vehicles):
+        reference_trip_time_delay = 20  # reference to maximum trip time delay for all vehicles could take
+        regional_rewards = [0] * 3  # 3 regions (lane 1 with ramp, lane2, lane3)
+        global_reward = [0] * self.n_agents
+
+        for agent_indx, veh in enumerate(self.controlled_vehicles):
+            cost = 0
+            reward = 0
 
             if self.agent_is_collide(veh):
                 cost += cnf.COLLISION_COST
@@ -226,7 +233,25 @@ class OnRampEnv:
                     del self.arrived_vehicles_state["vehicles"][i]
                     del self.arrived_vehicles_state["terminal_state"][i]
 
-        return reward - cost
+            if state[agent_indx][s_lane] == 3:
+                regional_rewards[2] += reward - cost
+            elif state[agent_indx][s_lane] == 2:
+                regional_rewards[1] += reward - cost
+            else:
+                # ramp or lane 1 share the same global reward
+                regional_rewards[0] += reward - cost
+
+        for agent in range(self.n_agents):
+            if state[agent][s_lane] == 3:
+                global_reward[agent] = regional_rewards[2]
+            elif state[agent][s_lane] == 2:
+                global_reward[agent] = regional_rewards[1]
+            else:
+                # ramp or lane 1 share the same global reward
+                global_reward[agent] = regional_rewards[0]
+
+        print(global_reward)
+        return global_reward
 
     def _local_rewards(self, state, actions, new_state):
         rewards = []
@@ -429,22 +454,22 @@ class OnRampEnv:
         if action == a_left:
             if road_id == self.on_ramp_edge:
                 return False
-            elif lane_number > 1:
+            elif lane_number >= 2:
                 return False
 
         elif action == a_right:
             if road_id == self.on_ramp_edge:
                 return False
-            elif lane_number < 2:
+            elif lane_number <= 1:
                 return False
 
-        # # hard braking for highway and ramp
-        # if road_id == self.on_ramp_edge:
-        #     if traci.vehicle.getAcceleration(vehicle) >= self.on_ramp_properties['hard_braking']:
-        #         return False
-        # else:
-        #     if traci.vehicle.getAcceleration(vehicle) >= self.on_highway_properties['hard_braking']:
-        #         return False
+        # hard braking for highway and ramp
+        if road_id == self.on_ramp_edge:
+            if traci.vehicle.getAcceleration(vehicle) <= self.on_ramp_properties['hard_braking']:
+                return False
+        else:
+            if traci.vehicle.getAcceleration(vehicle) <= self.on_highway_properties['hard_braking']:
+                return False
 
         return True
 

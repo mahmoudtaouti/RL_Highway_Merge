@@ -6,7 +6,7 @@ from MARL.common.utils import agg_list_stat
 from on_ramp_env import OnRampEnv
 from util.common_util import increment_counter, write_to_log
 
-import config as cnf
+from MADQN_config import *
 
 
 def main():
@@ -18,20 +18,19 @@ def main():
     outputs_dir = f"./outputs/{exec_num}/"
     os.makedirs(outputs_dir, exist_ok=True)
 
-    write_to_log(f"======================================================\n"
-                 f"Execution number : {exec_num}\n"
-                 "=======================================================", output_dir=outputs_dir)
-    with open('config.py', 'r') as file:
+    write_to_log(f"Execution number : {exec_num}\n"
+                 "=================================", output_dir=outputs_dir)
+    with open('MADQN_config.py', 'r') as file:
         configs = file.read()
         write_to_log(configs, output_dir=outputs_dir)
 
     env = OnRampEnv(exec_num=exec_num)
 
     rl = MADQN(n_agents=env.n_agents, state_dim=env.n_state, action_dim=env.n_action,
-               memory_capacity=cnf.MEMORY_SIZE, batch_size=cnf.BATCH_SIZE,
-               target_update_freq=50, reward_gamma=cnf.REWARD_DISCOUNTED_GAMMA,
-               actor_hidden_size=cnf.ACTOR_HIDDEN_SIZE, critic_loss=cnf.CRITIC_LOSS,
-               epsilon_start=cnf.EPSILON_START, epsilon_end=cnf.EPSILON_END, epsilon_decay=cnf.EPSILON_DECAY,
+               memory_capacity=MEMORY_SIZE, batch_size=BATCH_SIZE,
+               target_update_freq=50, reward_gamma=REWARD_DISCOUNTED_GAMMA,
+               actor_hidden_size=ACTOR_HIDDEN_SIZE, critic_loss=CRITIC_LOSS,
+               epsilon_start=EPSILON_START, epsilon_end=EPSILON_END, epsilon_decay=EPSILON_DECAY,
                optimizer_type="rmsprop", outputs_dir=outputs_dir)
 
     training_loop(env, rl, outputs_dir)
@@ -45,7 +44,7 @@ def training_loop(env, rl, outputs_dir):
     train after some episodes, update target model weights
     """
     eva_num = 0
-    for eps in range(cnf.EPISODES):
+    for eps in range(EPISODES):
         states, _ = env.reset()
         done = False
         step = 0
@@ -56,21 +55,18 @@ def training_loop(env, rl, outputs_dir):
             actions = rl.exploration_act(states, n_episodes=eps)
 
             # perform actions on env
-            new_states, global_reward, done, info = env.step(actions)
-
-            # global reward for each agent
-            rewards = [locl_r + global_reward for locl_r in info["local_rewards"]]
+            new_states, rewards, done, info = env.step(actions)
 
             # remember experience
             rl.remember(states, actions, rewards, new_states, done)
             states = new_states
 
-        if eps > cnf.EPISODES_BEFORE_TRAIN:
+        if eps > EPISODES_BEFORE_TRAIN:
             rl.learn()
 
         env.close()
 
-        if eps != 0 and eps % cnf.EVAL_INTERVAL == 0:
+        if eps != 0 and eps % EVAL_INTERVAL == 0:
             evaluation(env, rl, eps, eva_num, outputs_dir)
             eva_num += 1
 
@@ -89,10 +85,10 @@ def evaluation(env, rl, episode, eva_number, outputs_dir):
     infos = []
     trip_time_delays = []
     local_rewards = []
-    for i in range(cnf.EVAL_EPISODES):
-        write_to_log(f"Evaluation___________________________________________\n"
-                     f" number -- {eva_number}\n"
-                     f" training episode -- {episode}\n", output_dir=outputs_dir)
+    for i in range(EVAL_EPISODES):
+        write_to_log(f"Evaluation_____________________\n"
+                     f" number - {eva_number}\n"
+                     f" training episode - {episode}\n", output_dir=outputs_dir)
         rewards_i = []
         infos_i = []
         states, _ = env.reset(show_gui=True)
@@ -101,11 +97,10 @@ def evaluation(env, rl, episode, eva_number, outputs_dir):
         while not eval_done:
             in_step += 1
             action = rl.act(states)
-            new_states, global_reward, eval_done, info = env.step(action)
-            total_reward = sum(info["local_rewards"]) + global_reward
-            local_rewards.append(info["local_rewards"])
+            new_states, step_rewards, eval_done, info = env.step(action)
+
             # env.render(eva_number) if i == 0 else None
-            rewards_i.append(total_reward)
+            rewards_i.append(sum(step_rewards))
             infos_i.append(info)
             for agent in range(0, env.n_agents):
                 speeds.append(states[agent][2])
@@ -116,11 +111,10 @@ def evaluation(env, rl, episode, eva_number, outputs_dir):
                          f"\t* actions : {action}\n"
                          f"\t* agents dones : {info['agents_dones']}\n"
                          f"\t* state : {states} \n"
-                         f"\t* global reward : {global_reward} \n"
-                         f"\t* local rewards : {info['local_rewards']} \n", output_dir=outputs_dir)
+                         f"\t* reward : {step_rewards} \n", output_dir=outputs_dir)
             states = new_states
 
-        write_to_log(f"_____________________________________________\n", output_dir=outputs_dir)
+        write_to_log(f"---------------------------------\n", output_dir=outputs_dir)
         env.close()
         rewards.append(rewards_i)
         infos.append(infos_i)

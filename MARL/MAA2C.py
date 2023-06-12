@@ -1,6 +1,6 @@
 import os
 import numpy as np
-import config as cnf
+from MAA2C_config import SEED, SHARED_CRITIC_HIDDEN_SIZE
 from MARL.agent.A2C import A2C
 import torch as th
 from torch.optim import Adam
@@ -11,9 +11,9 @@ from MARL.common.utils import exponential_epsilon_decay
 from util.ModifiedTensorBoard import ModifiedTensorBoard
 
 # seed
-np.random.seed(cnf.SEED)
-th.manual_seed(cnf.SEED)
-random.seed(cnf.SEED)
+np.random.seed(SEED)
+th.manual_seed(SEED)
+random.seed(SEED)
 
 
 class MAA2C:
@@ -56,7 +56,7 @@ class MAA2C:
         if training_strategy == "centralized" and not is_evaluation:
             self.shared_memory = ReplayMemory(capacity=memory_capacity)
             self.shared_critic = CriticNetwork(state_dim * n_agents, action_dim * n_agents,
-                                               cnf.SHARED_CRITIC_HIDDEN_SIZE, 1)
+                                               SHARED_CRITIC_HIDDEN_SIZE, 1)
             self.shared_critic_optimizer = Adam(self.shared_critic.parameters(), lr=critic_lr)
 
         # Create N agents that share the same model

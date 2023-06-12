@@ -3,7 +3,7 @@ import os
 
 import numpy as np
 
-import config as cnf
+import MADQN_config as cnf
 from MARL.MAA2C import MAA2C
 from MARL.MADQN import MADQN
 from MARL.common.utils import agg_list_stat
@@ -82,9 +82,9 @@ def main():
         step += 1
         # actions = rl.act(state)
         # perform actions on env
-        new_state, glob, done, info = env.step([0, 0, 0, 0, 0, 0])
+        new_state, rewards_i, done, info = env.step([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         # env.render()
-        rewards_i = [locl_r + glob for locl_r in info["local_rewards"]]
+
         # env.render(output_dir=test_dir, episode=2)
         for agent in range(env.n_agents):
             rewards[agent].append(rewards_i[agent])

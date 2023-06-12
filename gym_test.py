@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 from matplotlib import pyplot as plt
-import config as cnf
+import MADQN_config as cnf
 from MARL.agent.A2C import A2C
 from MARL.agent.DQN import DQN
 from MARL.common.utils import exponential_epsilon_decay

@@ -1,6 +1,6 @@
 """Runner var"""
-RL_OPTION = "MADQN"
-TRAINING_STRATEGY = "concurrent"
+RL_OPTION = "MAA2C"
+TRAINING_STRATEGY = "centralized"
 MODEL_TYPE = "torch"
 MODEL_NAME = f"{RL_OPTION}_{TRAINING_STRATEGY}"
 

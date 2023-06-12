@@ -2,7 +2,7 @@ import torch as th
 from torch import nn
 from torch.optim import Adam, RMSprop
 import random
-import config as cnf
+import MADQN_config as cnf
 import numpy as np
 from MARL.common.Memory import ReplayMemory
 from MARL.common.Model import QNetwork
