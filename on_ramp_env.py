@@ -6,7 +6,7 @@ import itertools
 
 import traci
 import sumolib
-import MADQN_config as cnf
+from ENV_config import *
 
 import random
 from sync_simulation import TraCiSync
@@ -44,15 +44,14 @@ class OnRampEnv:
     - controlled_vehicles = [vehicles_id]
     Note:
         * speed m/s
-        * distance meter
+        * distance in meter
         * close the environment after done with close()
-        * start_step = (last_depart/DELTA_SEC) + 1, all vehicles should departed before start doing .step(actions)
     """
     show_gui = False
     syn_with_carla = False
     step_num = 0
-    start_step = 241  # 2veh;33 , 4veh;161, 6veh;241, 8veh;321, 10veh;401
-    max_steps = 700
+    start_step = 0
+    max_steps = 400
 
     # simulation var
     on_ramp_edge = "44.0.00"
@@ -61,7 +60,7 @@ class OnRampEnv:
     highway_edges = ("40.0.00", "39.0.00", "38.0.00")
 
     # agents var
-    controlled_vehicles = ["0", "1", "2", "3", "4", "5", "10", "11", "12", "13", "14", "15"]
+    controlled_vehicles = ["0", "1", "2", "3", "4", "5"]
 
     TTC_threshold = 10
     headway_threshold = 1.2
@@ -106,14 +105,19 @@ class OnRampEnv:
         ':669_1': 12,
         ':669_2': 13,
         ':669_3': 14,
-        ':669_4': 16,
+        ':669_4': 15,
         ':669_5': 16,
         ':669_6': 17
     }
 
+    spawn_positions = {
+        "route0": (0, 30, 60, 90, 120, 150, 180),
+        "route1": (0, 30, 60, 90, 120)
+    }
+
     def __init__(self, exec_num=1e3):
 
-        self.init_state_vals = (0, 0, 0, 0, 0, -1, -1, -1, 0)
+        self.init_state_vals = (0, 0, 0, 0, 0, c_util.infinity, c_util.infinity, c_util.infinity, 0)
         self.state = [self.init_state_vals for _ in self.controlled_vehicles]
 
         self.agent_actions = ['idle', 'accelerate', 'decelerate', 'change_right', 'change_left']
@@ -141,20 +145,24 @@ class OnRampEnv:
 
         self._starSIM()
 
-        # depart steps (all vehicles entered the sim)
-        while self.step_num < self.start_step:
-            self.sim_step()
-            self.step_num += 1
+        routesID, positions = self.generate_random_departs()
+        # spawn vehicles and disable automatic control by SUMO.
+        for vehID, routeID, position in zip(self.controlled_vehicles, routesID, positions):
+            traci.vehicle.add(
+                vehID=vehID,
+                routeID=routeID,
+                typeID="vehicle.tesla.model3",
+                depart="now",
+                departPos=position,
+                departLane=f"{random.choice([1, 2, 3])}" if routeID == "route0" else "first",
+                departSpeed="17"
+            )
+            traci.vehicle.setSpeedMode(vehID, 32)
+            traci.vehicle.setSpeedFactor(vehID, 1.33)
+            traci.vehicle.setLaneChangeMode(vehID, 512)
 
-        # disable automatic control by SUMO.
-        for vehID in self.controlled_vehicles:
-            if self.agent_is_exist(vehID):
-                traci.vehicle.setSpeedMode(vehID, 32)
-                traci.vehicle.setLaneChangeMode(vehID, 512)
-                traci.vehicle.setAccel(vehID, 0)
-                traci.vehicle.setSpeed(vehID, 20)
-            else:
-                raise AssertionError(f"Make sure vehicle {vehID} is departed")
+        self.sim_step()
+        self.step_num += 1
 
         self._update_state()
         return c_util.to_ndarray(self.state), {}
@@ -170,12 +178,12 @@ class OnRampEnv:
         info = {
             "agents_dones": tuple(not self.agent_is_exist(veh) for veh in self.controlled_vehicles),
             "agents_actions": actions,
-            "local_rewards": [0]*self.n_agents,
+            "local_rewards": [0] * self.n_agents,
             "agents_info": self.state,
         }
 
         # end episode
-        if all(info["agents_dones"]) or self.step_num >= self.max_steps or traci.simulation.getMinExpectedNumber() == 0:
+        if all(info["agents_dones"]) or self.step_num >= self.max_steps:
             done = True
             self.finished_at = self.step_num
             self.step_num = 0
@@ -214,21 +222,21 @@ class OnRampEnv:
         # Calculate global rewards based on the state of the entire system
         # Consider system-level objectives such as trip time delay, safety, efficiency, etc.
 
-        reference_trip_time_delay = 20  # reference to maximum trip time delay for all vehicles could take
         regional_rewards = [0] * 3  # 3 regions (lane 1 with ramp, lane2, lane3)
         global_reward = [0] * self.n_agents
 
         for agent_indx, veh in enumerate(self.controlled_vehicles):
+
             cost = 0
             reward = 0
 
             if self.agent_is_collide(veh):
-                cost += cnf.COLLISION_COST
+                cost += COLLISION_COST
 
             for i, arr_veh in enumerate(self.arrived_vehicles_state["vehicles"]):
                 if arr_veh == veh:
                     t_state = self.arrived_vehicles_state["terminal_state"][i]
-                    reward += 5 if reference_trip_time_delay - t_state[s_trip_t_delay] > 0 else 0
+                    reward += 5 if REFERENCE_TRIP_DELAY - t_state[s_trip_t_delay] > 0 else 0
                     # delete vehicle from list after passing the reward
                     del self.arrived_vehicles_state["vehicles"][i]
                     del self.arrived_vehicles_state["terminal_state"][i]
@@ -237,8 +245,7 @@ class OnRampEnv:
                 regional_rewards[2] += reward - cost
             elif state[agent_indx][s_lane] == 2:
                 regional_rewards[1] += reward - cost
-            else:
-                # ramp or lane 1 share the same global reward
+            else:  # ramp or lane 1 share the same global reward
                 regional_rewards[0] += reward - cost
 
         for agent in range(self.n_agents):
@@ -250,7 +257,6 @@ class OnRampEnv:
                 # ramp or lane 1 share the same global reward
                 global_reward[agent] = regional_rewards[0]
 
-        print(global_reward)
         return global_reward
 
     def _local_rewards(self, state, actions, new_state):
@@ -263,7 +269,7 @@ class OnRampEnv:
                     ''' vehicles on ramp '''
                     rewards.append(self._on_ramp_reward(indx, vehicle, state, action, new_state))
                 else:
-                    ''' vehicles on highway'''
+                    ''' vehicles on highway '''
                     rewards.append(self._on_highway_reward(indx, vehicle, state, action, new_state))
         return rewards
 
@@ -297,11 +303,11 @@ class OnRampEnv:
             cost += delta_speed
 
         # Reward for safe merging with d_speed (no abrupt maneuvers)
-        reward += cnf.MERGING_LANE_REWARD / (abs(delta_speed) + 0.9999) if new_state[indx][s_edge] != ramp_edge else 0
+        reward += MERGING_LANE_REWARD / (abs(delta_speed) + 0.9999) if new_state[indx][s_edge] != ramp_edge else 0
 
         if headway > 0 and current_speed > 0:
             r_headway = math.log(headway / (self.headway_threshold * current_speed))
-            cost += - cnf.HEADWAY_COST * r_headway if r_headway < 0 else 0
+            cost += - HEADWAY_COST * r_headway if r_headway < 0 else 0
 
         return reward - cost
 
@@ -335,9 +341,9 @@ class OnRampEnv:
 
         if headway > 0 and current_speed > 0:
             r_headway = math.log(headway / (self.headway_threshold * current_speed))
-            cost += - cnf.HEADWAY_COST * r_headway if r_headway < 0 else 0
+            cost += - HEADWAY_COST * r_headway if r_headway < 0 else 0
 
-        if ttc != -1 and ttc < self.TTC_threshold:
+        if ttc != c_util.infinity and ttc < self.TTC_threshold:
             if action == a_dec:
                 reward += 1.2
             elif action == a_left and tr_util.change_lane_chance(vehicleID=agent, change_direction=1):
@@ -351,6 +357,7 @@ class OnRampEnv:
         """
         state(posX, posY, speed(m/s), edge_id, lane_indx, dist_merge_node, TTC, headway, trip_time_delay)
         """
+
         def get_state(vehicle):
             posX = traci.vehicle.getPosition(vehicle)[0]
             posY = traci.vehicle.getPosition(vehicle)[1]
@@ -419,13 +426,13 @@ class OnRampEnv:
                        "-c", "./map/Town04.sumocfg",
                        '--start',
                        '--quit-on-end',
-                       '--step-length', str(cnf.DELTA_SEC),
+                       '--step-length', str(DELTA_SEC),
                        '--lateral-resolution', '0.25',
                        '--seed', str(seed)]
         else:
             sumoCmd = [sumolib.checkBinary('sumo'),
                        "-c", "./map/Town04.sumocfg",
-                       '--step-length', str(cnf.DELTA_SEC),
+                       '--step-length', str(DELTA_SEC),
                        '--lateral-resolution', '0.25',
                        '--seed', str(seed)]
 
@@ -498,6 +505,21 @@ class OnRampEnv:
         except:
             pass
 
+    def normalize_state(self, state):
+        n_state = []
+        for i in range(self.n_agents):
+            posX = c_util.lmap(state[i][0], POSITION_RANGE, (0, 1))
+            posY = c_util.lmap(state[i][1], POSITION_RANGE, (0, 1))
+            speed = c_util.lmap(state[i][2], SPEED_RANGE, (0, 1))
+            edge_id = state[i][3]
+            lane_id = state[i][4]
+            dist_merge_node = c_util.lmap(state[i][5], DISTANCE_RANGE, (0, 1))
+            ttc = c_util.lmap(state[i][6], TTC_RANGE, (0, 1))
+            headway = c_util.lmap(state[i][7], HEADWAY_RANGE, (0, 1))
+            trip_delay = c_util.lmap(state[i][8], TRIP_DELAY_RANGE, (0, 1))
+            n_state.append([posX, posY, speed, edge_id, lane_id, dist_merge_node, ttc, headway, trip_delay])
+        return c_util.to_ndarray(n_state)
+
     def sim_step(self, callback=None):
 
         if self.syn_with_carla:
@@ -509,7 +531,32 @@ class OnRampEnv:
             traci.simulationStep()
 
     def close(self):
-        if self.syn_with_carla:
-            self.traci_sync.close()
-        else:
-            traci.close()
+        try:
+            if self.syn_with_carla:
+                self.traci_sync.close()
+            else:
+                traci.close()
+        except:
+            print("can not close simulator")
+
+    def generate_random_departs(self):
+
+        routes_ids = list(self.spawn_positions.keys())
+        available_positions = [list(i) for i in self.spawn_positions.values()]
+
+        generated_routes = []
+        generated_positions = []
+        for i in range(self.n_agents):
+            retry_limit = 10
+            retries = 0
+            while retries < retry_limit:
+                try:
+                    routeID = random.choice(routes_ids)
+                    position = random.choice(available_positions[routes_ids.index(routeID)])
+                    available_positions[routes_ids.index(routeID)].remove(position)
+                    generated_routes.append(routeID)
+                    generated_positions.append(position)
+                    break
+                except IndexError:
+                    retries += 1
+        return generated_routes, generated_positions

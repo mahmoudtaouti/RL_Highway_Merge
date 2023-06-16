@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import os
 
@@ -5,8 +7,8 @@ from MARL.MAA2C import MAA2C
 from MARL.common.utils import agg_list_stat
 from on_ramp_env import OnRampEnv
 from util.common_util import increment_counter, write_to_log
-
-from MADQN_config import *
+import torch
+from MAA2C_config import *
 
 
 def main():
@@ -26,6 +28,11 @@ def main():
         write_to_log(configs, output_dir=outputs_dir)
 
     env = OnRampEnv(exec_num=exec_num)
+
+    # seed
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    random.seed(SEED)
 
     rl = MAA2C(n_agents=env.n_agents, state_dim=env.n_state, action_dim=env.n_action,
                memory_capacity=MEMORY_SIZE, batch_size=BATCH_SIZE,
@@ -56,13 +63,13 @@ def training_loop(env, rl, outputs_dir):
         while not done:
             step += 1
             # select agents action
-            actions = rl.exploration_act(states, n_episodes=eps)
+            actions = rl.exploration_act(env.normalize_state(states), n_episodes=eps)
 
             # perform actions on env
             new_states, rewards, done, info = env.step(actions)
 
             # remember experience
-            rl.remember(states, actions, rewards, new_states, done)
+            rl.remember(env.normalize_state(states), actions, rewards, env.normalize_state(new_states), done)
             states = new_states
 
         env.close()
@@ -83,29 +90,28 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
     # save checkpoint model
     # save data to log file
     """
-    rewards = []
+    rewards = [[]] * env.n_agents
     speeds = []
     ttcs = []
     headways = []
     infos = []
     trip_time = []
-    local_rewards = []
     for i in range(EVAL_EPISODES):
         write_to_log(f"Evaluation___________________________________________\n"
                      f" number - {eval_number}\n"
                      f" training episode - {episode}\n", output_dir=outputs_dir)
-        rewards_i = []
         infos_i = []
         states, _ = env.reset(show_gui=True)
         eval_done = False
         while not eval_done:
-            action = rl.act(states)
+            action = rl.act(env.normalize_state(states))
             new_states, step_rewards, eval_done, info = env.step(action)
 
             # env.render(eval_number) if i == 0 else None
-            rewards_i.append(sum(step_rewards))
+
             infos_i.append(info)
             for agent in range(0, env.n_agents):
+                rewards[agent].append(step_rewards[agent])
                 speeds.append(states[agent][2])
                 ttcs.append(states[agent][6])
                 headways.append(states[agent][7])
@@ -119,20 +125,15 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
 
         write_to_log(f"---------------------------------\n", output_dir=outputs_dir)
         env.close()
-        rewards.append(rewards_i)
         infos.append(infos_i)
 
     rewards_mu, rewards_std, _, _ = agg_list_stat(rewards)
     speeds = np.array(speeds)
     ttcs = np.array(ttcs)
     headways = np.array(headways)
-    local_rewards = np.array(local_rewards).reshape(-1, 2)
-    locl_r_sum = np.sum(local_rewards, axis=0)
     trip_time = np.array(trip_time)
     rl.tensorboard.update_stats(
         reward_avg=rewards_mu,
-        veh0_locl_reward=locl_r_sum[0],
-        veh1_locl_reward=locl_r_sum[1],
         reward_std=rewards_std,
         epsilon=rl.epsilon,
         speed_avg=np.mean(speeds),

@@ -82,7 +82,7 @@ def main():
         step += 1
         # actions = rl.act(state)
         # perform actions on env
-        new_state, rewards_i, done, info = env.step([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        new_state, rewards_i, done, info = env.step([0, 0, 0, 0, 0, 0, 0, 0])
         # env.render()
 
         # env.render(output_dir=test_dir, episode=2)

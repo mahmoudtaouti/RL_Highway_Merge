@@ -4,16 +4,10 @@ from MAA2C_config import SEED, SHARED_CRITIC_HIDDEN_SIZE
 from MARL.agent.A2C import A2C
 import torch as th
 from torch.optim import Adam
-import random
 from MARL.common.Memory import ReplayMemory
 from MARL.common.Model import CriticNetwork
 from MARL.common.utils import exponential_epsilon_decay
 from util.ModifiedTensorBoard import ModifiedTensorBoard
-
-# seed
-np.random.seed(SEED)
-th.manual_seed(SEED)
-random.seed(SEED)
 
 
 class MAA2C:

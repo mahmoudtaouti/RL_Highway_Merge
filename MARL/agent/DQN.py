@@ -1,17 +1,11 @@
 import torch as th
 from torch import nn
 from torch.optim import Adam, RMSprop
-import random
-import MADQN_config as cnf
+
 import numpy as np
 from MARL.common.Memory import ReplayMemory
 from MARL.common.Model import QNetwork
 from MARL.common.utils import identity, to_tensor_var
-
-# seed
-np.random.seed(cnf.SEED)
-th.manual_seed(cnf.SEED)
-random.seed(cnf.SEED)
 
 
 class DQN:

@@ -2,10 +2,34 @@ import numpy as np
 import os
 import cv2
 
+infinity = 9999
 
-def lmap(v: float, x_range, y_range) -> float:
-    """Linear map of value v with range x to desired range y."""
-    return y_range[0] + (v - x_range[0]) * (y_range[1] - y_range[0]) / (x_range[1] - x_range[0])
+
+def lmap(value: float, orig_range, target_range):
+    """
+    map a value from the original range to the target range.
+    Values outside the target range will be clipped.
+
+    Arguments:
+    - value: The value to be normalized.
+    - orig_range: The original range of the value in the form of (min_value, max_value).
+    - target_range: The target range to normalize the value to, in the form of (min_value, max_value).
+
+    Returns:
+    - The normalized value within the target range.
+    """
+    orig_min, orig_max = orig_range
+    target_min, target_max = target_range
+
+    # Clip the value to the original range
+    clipped_value = np.clip(value, orig_min, orig_max)
+
+    # Normalize the clipped value to the target range
+    normalized_value = (clipped_value - orig_min) / (orig_max - orig_min)  # Scale to range [0, 1]
+
+    # Scale the normalized value to the target range
+    normalized_value = normalized_value * (target_max - target_min) + target_min
+    return normalized_value
 
 
 def to_ndarray(arr):
@@ -20,7 +44,7 @@ def write_to_log(message, output_dir='ver/log.txt'):
 
 def increment_counter():
     """
-    count each execute and give current counte number
+    count each execute and give current count number
     """
     counter_file = "exec.num"
 
