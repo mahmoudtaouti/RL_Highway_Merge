@@ -13,7 +13,7 @@ from MARL.common.utils import entropy, index_to_one_hot, to_tensor_var
 class A2C:
     """
     A2C agent
-    using pytorch model approximation based method
+    using pytorch model approximation learning based method
     - take exploration action, expect epsilon value or use decay_epsilon()
     - save experiences to replay memory
     - train actor critic model

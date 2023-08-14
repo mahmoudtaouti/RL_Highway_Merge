@@ -1,5 +1,6 @@
 import torch as th
 from torch import nn
+import torch.functional as F
 
 
 class ActorNet(nn.Module):
@@ -84,6 +85,7 @@ class QNetwork(nn.Module):
     """
     A network for the Q-function in DQN
     """
+
     def __init__(self, state_dim, hidden_size, action_dim):
         super().__init__()
         self.model = nn.Sequential(
@@ -98,3 +100,57 @@ class QNetwork(nn.Module):
         return self.model(state)
 
 
+class QMIXNet(nn.Module):
+    def __init__(self, N, state_dim, hidden_size, hyper_hidden_dim, hyper_layers_num):
+        super(QMIXNet, self).__init__()
+        self.N = N
+        self.state_dim = state_dim
+        self.qmix_hidden_dim = hidden_size
+        self.hyper_hidden_dim = hyper_hidden_dim
+        self.hyper_layers_num = hyper_layers_num
+        """
+        w1:(N, qmix_hidden_dim)
+        b1:(1, qmix_hidden_dim)
+        w2:(qmix_hidden_dim, 1)
+        b2:(1, 1)
+        Because the generated hyper_w1 needs to be a matrix, and the pytorch neural network can only output a vector,
+         So first output the vector whose length is the required matrix row*matrix column, and then convert it into a matrix
+        """
+        if self.hyper_layers_num == 2:
+            self.hyper_w1 = nn.Sequential(nn.Linear(self.state_dim, self.hyper_hidden_dim),
+                                          nn.ReLU(),
+                                          nn.Linear(self.hyper_hidden_dim, self.N * self.qmix_hidden_dim))
+            self.hyper_w2 = nn.Sequential(nn.Linear(self.state_dim, self.hyper_hidden_dim),
+                                          nn.ReLU(),
+                                          nn.Linear(self.hyper_hidden_dim, self.qmix_hidden_dim * 1))
+        elif self.hyper_layers_num == 1:
+            self.hyper_w1 = nn.Linear(self.state_dim, self.N * self.qmix_hidden_dim)
+            self.hyper_w2 = nn.Linear(self.state_dim, self.qmix_hidden_dim * 1)
+
+        self.hyper_b1 = nn.Linear(self.state_dim, self.qmix_hidden_dim)
+        self.hyper_b2 = nn.Sequential(nn.Linear(self.state_dim, self.qmix_hidden_dim),
+                                      nn.ReLU(),
+                                      nn.Linear(self.qmix_hidden_dim, 1))
+
+    def __call__(self, q, s):
+        # q.shape(batch_size, max_episode_len, N)
+        # s.shape(batch_size, max_episode_len,state_dim)
+        q = q.view(-1, 1, self.N)  # (batch_size * max_episode_len, 1, N)
+        s = s.reshape(-1, self.state_dim)  # (batch_size * max_episode_len, state_dim)
+
+        w1 = th.abs(self.hyper_w1(s))  # (batch_size * max_episode_len, N * qmix_hidden_dim)
+        b1 = self.hyper_b1(s)  # (batch_size * max_episode_len, qmix_hidden_dim)
+        w1 = w1.view(-1, self.N, self.qmix_hidden_dim)  # (batch_size * max_episode_len, N,  qmix_hidden_dim)
+        b1 = b1.view(-1, 1, self.qmix_hidden_dim)  # (batch_size * max_episode_len, 1, qmix_hidden_dim)
+
+        # torch.bmm: 3 dimensional tensor multiplication
+        q_hidden = F.elu(th.bmm(q, w1) + b1)  # (batch_size * max_episode_len, 1, qmix_hidden_dim)
+
+        w2 = th.abs(self.hyper_w2(s))  # (batch_size * max_episode_len, qmix_hidden_dim * 1)
+        b2 = self.hyper_b2(s)  # (batch_size * max_episode_len,1)
+        w2 = w2.view(-1, self.qmix_hidden_dim, 1)  # (batch_size * max_episode_len, qmix_hidden_dim, 1)
+        b2 = b2.view(-1, 1, 1)  # (batch_size * max_episode_len, 1， 1)
+
+        q_total = th.bmm(q_hidden, w2) + b2  # (batch_size * max_episode_len, 1， 1)
+        q_total = q_total.view(self.batch_size, -1, 1)  # (batch_size, max_episode_len, 1)
+        return q_total

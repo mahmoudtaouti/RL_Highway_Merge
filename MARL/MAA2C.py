@@ -1,9 +1,10 @@
 import os
-import numpy as np
-from MAA2C_config import SEED, SHARED_CRITIC_HIDDEN_SIZE
-from MARL.agent.A2C import A2C
+
 import torch as th
 from torch.optim import Adam
+
+from MAA2C_config import SHARED_CRITIC_HIDDEN_SIZE
+from MARL.agent.A2C import A2C
 from MARL.common.Memory import ReplayMemory
 from MARL.common.Model import CriticNetwork
 from MARL.common.utils import exponential_epsilon_decay

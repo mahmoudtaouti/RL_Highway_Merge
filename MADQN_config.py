@@ -8,19 +8,19 @@ MODEL_NAME = f"{RL_OPTION}_{TRAINING_STRATEGY}"
 MAX_SIM_STEPS = 1000
 GUI_DELAY = 100
 WAITING_AGENT = 0.0001
-DELTA_SEC = 0.05  # step length this should be same for both simulation (CARLA and SUMO)
+DELTA_SEC = 0.05  # step length this should be same for both simulators (CARLA and SUMO)
 
 """training var"""
-EPISODES = 5000
-EPISODES_BEFORE_TRAIN = 5
+EPISODES = 5050
+EPISODES_BEFORE_TRAIN = 1
 EVAL_INTERVAL = 50
-EVAL_EPISODES = 3
-MEMORY_SIZE = 600  # affect the memory usage
+EVAL_EPISODES = 5
+MEMORY_SIZE = 300  # affect the memory usage
 BATCH_SIZE = 300
 UPDATE_TARGET_FREQ = 30
 AGGREGATE_STATS_EVERY = 10
 ROLL_OUT_STEPS = 50
-SEED = 18
+SEED = 85
 
 """define RL var"""
 LEARNING_RATE = 0.001
@@ -38,7 +38,7 @@ ENTROPY_REG = 0.01
 
 
 """models var"""
-ACTOR_HIDDEN_SIZE = 128
+ACTOR_HIDDEN_SIZE = 64
 
 
 """define the constants for the reward function"""

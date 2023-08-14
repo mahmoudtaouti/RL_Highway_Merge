@@ -38,9 +38,9 @@ class ModifiedTensorBoard(TensorBoard):
 
     # Custom method for saving own metrics
     # Creates writer, writes custom metrics and closes writer
-    def update_stats(self, **stats):
+    def update_stats(self, stats):
         self._write_logs(stats, self.step)
-
+    # TODO : parameters use **stats instead of directly give a dict
     # Custom method for saving own metrics
     # Creates writer, writes custom metrics and closes writer
     # def update_stats(self, **stats):

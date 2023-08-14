@@ -125,6 +125,8 @@ class DQN:
         # compute target q by: r + gamma * max_a { V(s_{t+1}) }
         target_q = self.reward_scale * rewards_var[:, n_agents, :] + self.reward_gamma * next_q * (1. - dones_var[:, agent_index, :])
 
+        print("is it the same dim!")
+        print(len(next_q) == len(rewards_var[:, n_agents, :]))
         # update value network
         self.actor_optimizer.zero_grad()
 
@@ -141,7 +143,6 @@ class DQN:
         self.train_count += 1
         if self.train_count % self.target_update_freq == 0:
             self.update_target()
-
 
     def update_target(self):
         self.target.load_state_dict(self.actor.state_dict())

@@ -62,8 +62,8 @@ class OnRampEnv:
     # agents var
     controlled_vehicles = ["0", "1", "2", "3", "4", "5"]
 
-    TTC_threshold = 10
-    headway_threshold = 1.2
+    TTC_threshold = 12
+    headway_threshold = 1.5
     observation_range = 150  # assume AVs can detect objects within a range of 150 meters
     communication_range = 500  # assume AVs using V2V communication with 5G (that's just expected reference range)
 
@@ -117,7 +117,7 @@ class OnRampEnv:
 
     def __init__(self, exec_num=1e3):
 
-        self.init_state_vals = (0, 0, 0, 0, 0, c_util.infinity, c_util.infinity, c_util.infinity, 0)
+        self.init_state_vals = (0, 0, 0, 0, 0, c_util.INFINITY, c_util.INFINITY, c_util.INFINITY, 0)
         self.state = [self.init_state_vals for _ in self.controlled_vehicles]
 
         self.agent_actions = ['idle', 'accelerate', 'decelerate', 'change_right', 'change_left']
@@ -142,19 +142,21 @@ class OnRampEnv:
         self.show_gui = show_gui
         self.syn_with_carla = syn_with_carla
         self.step_num = 0
+        self.arrived_vehicles_state = {"vehicles": [], "terminal_state": []}
+        self.collided_vehicles = []
 
         self._starSIM()
 
-        routesID, positions = self.generate_random_departs()
+        routesID, lanes, positions = self.generate_random_departs()
         # spawn vehicles and disable automatic control by SUMO.
-        for vehID, routeID, position in zip(self.controlled_vehicles, routesID, positions):
+        for vehID, routeID, lane, position in zip(self.controlled_vehicles, routesID, lanes, positions):
             traci.vehicle.add(
                 vehID=vehID,
                 routeID=routeID,
                 typeID="vehicle.tesla.model3",
                 depart="now",
+                departLane=f"{lane}",
                 departPos=position,
-                departLane=f"{random.choice([1, 2, 3])}" if routeID == "route0" else "first",
                 departSpeed="17"
             )
             traci.vehicle.setSpeedMode(vehID, 32)
@@ -178,6 +180,7 @@ class OnRampEnv:
         info = {
             "agents_dones": tuple(not self.agent_is_exist(veh) for veh in self.controlled_vehicles),
             "agents_actions": actions,
+            "global_rewards": [0] * self.n_agents,
             "local_rewards": [0] * self.n_agents,
             "agents_info": self.state,
         }
@@ -343,13 +346,16 @@ class OnRampEnv:
             r_headway = math.log(headway / (self.headway_threshold * current_speed))
             cost += - HEADWAY_COST * r_headway if r_headway < 0 else 0
 
-        if ttc != c_util.infinity and ttc < self.TTC_threshold:
+        if ttc != c_util.INFINITY and ttc < self.TTC_threshold:
             if action == a_dec:
                 reward += 1.2
             elif action == a_left and tr_util.change_lane_chance(vehicleID=agent, change_direction=1):
                 reward += 0.6
 
-        reward += 0.3 if action == a_right and tr_util.change_lane_chance(vehicleID=agent, change_direction=-1) else 0
+        if action == a_right and tr_util.change_lane_chance(vehicleID=agent, change_direction=-1):
+            reward += 0.3
+        else:
+            cost += 1
 
         return reward - cost
 
@@ -543,20 +549,33 @@ class OnRampEnv:
 
         routes_ids = list(self.spawn_positions.keys())
         available_positions = [list(i) for i in self.spawn_positions.values()]
+        available_lane_positions = [available_positions] * 3
 
         generated_routes = []
+        generated_lanes = []
         generated_positions = []
+
         for i in range(self.n_agents):
             retry_limit = 10
             retries = 0
             while retries < retry_limit:
                 try:
                     routeID = random.choice(routes_ids)
-                    position = random.choice(available_positions[routes_ids.index(routeID)])
-                    available_positions[routes_ids.index(routeID)].remove(position)
-                    generated_routes.append(routeID)
-                    generated_positions.append(position)
+                    if routeID == "route0":
+                        lane = random.randint(1, 3)
+                        a_l_p = available_lane_positions[lane - 1][routes_ids.index(routeID)]
+                        position = random.choice(a_l_p)
+                        available_positions[routes_ids.index(routeID)].remove(position)
+                        generated_routes.append(routeID)
+                        generated_lanes.append(lane)
+                        generated_positions.append(position)
+                    else:
+                        position = random.choice(available_positions[routes_ids.index(routeID)])
+                        available_positions[routes_ids.index(routeID)].remove(position)
+                        generated_routes.append(routeID)
+                        generated_positions.append(position)
+                        generated_lanes.append("first")
                     break
                 except IndexError:
                     retries += 1
-        return generated_routes, generated_positions
+        return generated_routes, generated_lanes, generated_positions

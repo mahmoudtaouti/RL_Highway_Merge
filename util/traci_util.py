@@ -79,7 +79,7 @@ def get_distance_to_merge_point(vehID, merge_node):
         vehicle_pos = traci.vehicle.getPosition(vehID)
         jun_pos = traci.junction.getPosition(merge_node)
         return abs(traci.simulation.getDistance2D(vehicle_pos[0], vehicle_pos[1], jun_pos[0], jun_pos[1]))
-    return c_util.infinity
+    return c_util.INFINITY
 
 
 def get_closest_vehicle_on_ramp(on_highway_vehID, on_ramp_edge):
@@ -125,13 +125,13 @@ def ttc_with_ramp_veh(vehID, on_ramp_edge):
         ttc = calculate_ttc(vehID, clo_id)
         # Calculate the time to collision (TTC)
     else:
-        ttc = c_util.infinity
+        ttc = c_util.INFINITY
     return ttc
 
 
 def calculate_ttc(veh1, veh2):
     if veh1 == veh2:
-        return c_util.infinity
+        return c_util.INFINITY
 
     x1, y1 = traci.vehicle.getPosition(veh1)
     x2, y2 = traci.vehicle.getPosition(veh2)
@@ -157,7 +157,7 @@ def calculate_ttc(veh1, veh2):
         return ttc
 
     # If the vehicles are moving away or have the same speed, consider TTC as infinite
-    return c_util.infinity
+    return c_util.INFINITY
 
 
 def headway_distance(vehicle):
@@ -170,7 +170,7 @@ def headway_distance(vehicle):
     if leader_vehicle:
         headway_d = leader_vehicle[1]
     else:
-        headway_d = c_util.infinity
+        headway_d = c_util.INFINITY
     return headway_d
 
 
@@ -188,7 +188,7 @@ def trip_time(vehID):
     distance = traci.vehicle.getDistance(vehID)
     sim_time = traci.simulation.getTime()
     # Calculate trip time
-    trip_t = c_util.infinity  # Vehicle is stationary, set trip time to infinity
+    trip_t = c_util.INFINITY  # Vehicle is stationary, set trip time to infinity
     if speed > 0:
         trip_t = (distance / speed) + sim_time
 

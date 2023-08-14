@@ -2,7 +2,7 @@ import numpy as np
 import os
 import cv2
 
-infinity = 9999
+INFINITY = 9999
 
 
 def lmap(value: float, orig_range, target_range):

@@ -4,7 +4,7 @@ import numpy as np
 import os
 
 from MARL.MAA2C import MAA2C
-from MARL.common.utils import agg_list_stat
+from MARL.common.utils import agg_stat_list
 from on_ramp_env import OnRampEnv
 from util.common_util import increment_counter, write_to_log
 import torch
@@ -90,16 +90,19 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
     # save checkpoint model
     # save data to log file
     """
-    rewards = [[]] * env.n_agents
+    rewards = []
     speeds = []
     ttcs = []
     headways = []
-    infos = []
     trip_time = []
+    infos = []
+
     for i in range(EVAL_EPISODES):
         write_to_log(f"Evaluation___________________________________________\n"
                      f" number - {eval_number}\n"
                      f" training episode - {episode}\n", output_dir=outputs_dir)
+
+        rewards_i = [[]] * env.n_agents
         infos_i = []
         states, _ = env.reset(show_gui=True)
         eval_done = False
@@ -111,7 +114,7 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
 
             infos_i.append(info)
             for agent in range(0, env.n_agents):
-                rewards[agent].append(step_rewards[agent])
+                rewards_i[agent].append(step_rewards[agent])
                 speeds.append(states[agent][2])
                 ttcs.append(states[agent][6])
                 headways.append(states[agent][7])
@@ -123,23 +126,26 @@ def evaluation(env, rl, episode, eval_number, outputs_dir):
                          f"\t* reward : {step_rewards} \n", output_dir=outputs_dir)
             states = new_states
 
+        rewards.append(rewards_i)
+
         write_to_log(f"---------------------------------\n", output_dir=outputs_dir)
         env.close()
         infos.append(infos_i)
 
-    rewards_mu, rewards_std, _, _ = agg_list_stat(rewards)
+    rewards_mu, rewards_std, _, _ = agg_stat_list(rewards)
     speeds = np.array(speeds)
     ttcs = np.array(ttcs)
     headways = np.array(headways)
     trip_time = np.array(trip_time)
-    rl.tensorboard.update_stats(
-        reward_avg=rewards_mu,
-        reward_std=rewards_std,
-        epsilon=rl.epsilon,
-        speed_avg=np.mean(speeds),
-        min_ttc=np.min(ttcs),
-        headway=np.min(headways),
-        trip_time=np.max(trip_time))
+    rl.tensorboard.update_stats({
+        'reward_avg': rewards_mu,
+        'reward_std': rewards_std,
+        'epsilon': rl.epsilon,
+        'speed_avg': np.mean(speeds),
+        'min_ttc': np.min(ttcs),
+        'headway': np.min(headways),
+        'trip_time': np.max(trip_time)}
+    )
 
     rl.save(out_dir=outputs_dir, checkpoint_num=eval_number, global_step=episode)
 
