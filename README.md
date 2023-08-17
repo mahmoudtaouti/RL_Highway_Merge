@@ -1,6 +1,6 @@
 # Multi-Agent Reinforcement Learning for Autonomous Vehicles (Use case: Highway on-Ramp Merging)
 
-applying multi-agent techniques and approaches to the on-Ramp Merging Scenario, currently its based on the single agent reinforcement learning. Mainly value-based deep Q-learning and policy-based Advantage Actor-Critic algorithms
+applying multi-agent techniques and approaches to the on-Ramp Merging Scenario, currently its based on the single agent reinforcement learning. Mainly value-based deep Q-learning and policy-based Advantage Actor-Critic algorithms.
 
 ## Algorithms
 
@@ -16,10 +16,6 @@ All the MARL algorithms are extended from the single-agent RL with parameter sha
 - install pytorch (torch>=1.2.0): `pip install torch===1.7.0 torchvision===0.8.1 torchaudio===0.7.0 -f https://download.pytorch.org/whl/torch_stable.html`
 - install the requirements: `pip install -r requirements.txt`
 
-<p align="center">
-     <img src="eva/training_perfermance_4.png" alt="output_example" width="50%" height="50%">
-     <br>Fig.1 Illustration of the considered on-ramp merging traffic scenario. CAVs (blue) and HDVs (green) coexist on both ramp and through lanes.
-</p>
 
 ## Demo
 [see the site]()
