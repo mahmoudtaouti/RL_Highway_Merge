@@ -20,7 +20,6 @@ All the MARL algorithms are extended from the single-agent RL with parameter sha
 
 
 ## Demo
-vidios in addition to the training data
 [google drive](https://drive.google.com/drive/u/0/folders/1oGBD8EqlUZay4v8wY3Tlh3AHidBv2_B-)
 
 ## Usage
