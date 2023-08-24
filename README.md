@@ -1,6 +1,6 @@
 # Multi-Agent Reinforcement Learning for Autonomous Vehicles (Use case: Highway on-Ramp Merging)
 
-applying multi-agent techniques and approaches to the on-Ramp Merging Scenario, currently its based on the single agent reinforcement learning. Mainly value-based deep Q-learning and policy-based Advantage Actor-Critic algorithms.
+applying multi-agent techniques and approaches to the on-Ramp Merging Scenario, and extended from the single agent reinforcement learning. Mainly value-based deep Q-learning and policy-based Advantage Actor-Critic algorithms.
 
 ## Algorithms
 
