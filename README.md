@@ -15,10 +15,12 @@ All the MARL algorithms are extended from the single-agent RL with parameter sha
 - active the virtul environment: `conda activate marl_cav`
 - install pytorch (torch>=1.2.0): `pip install torch===1.7.0 torchvision===0.8.1 torchaudio===0.7.0 -f https://download.pytorch.org/whl/torch_stable.html`
 - install the requirements for MARL: `pip install -r MARL/requirements.txt`
+- install SUMO : [see carefully](https://sumo.dlr.de/docs/Installing/index.html)
+- install CARLA : [see carefully](https://carla.readthedocs.io/en/latest/start_quickstart/)
 
 
 ## Demo
-[see the site]()
+[see](https://drive.google.com/drive/u/0/folders/1oGBD8EqlUZay4v8wY3Tlh3AHidBv2_B-)
 
 ## Usage
 To run the training, just run it via `python run_xxxx.py`.
