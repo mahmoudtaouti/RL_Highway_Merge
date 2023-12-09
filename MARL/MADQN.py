@@ -54,7 +54,7 @@ class MADQN:
 
         self.agents = []
 
-        self.agents = [DQN(state_dim=state_dim * n_agents,
+        self.agents = [DQN(state_dim=state_dim,
                            action_dim=action_dim,
                            memory_capacity=memory_capacity,
                            reward_gamma=reward_gamma,
