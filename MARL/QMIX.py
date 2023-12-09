@@ -9,13 +9,10 @@ from MARL.common.utils import exponential_epsilon_decay
 from util.ModifiedTensorBoard import ModifiedTensorBoard
 
 
+
 class QMIX:
     """
-    multi-agent Deep Q-Network
-    - training with concurrent or centralized learnings
-    - two model option torch or tensor
-    - using target model for stable learning
-    - exploration action with exponential epsilon greedy
+    Not workning!!
     @mahmoudtaouti
     """
 
